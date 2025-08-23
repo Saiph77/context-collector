@@ -1,13 +1,53 @@
 import SwiftUI
 import AppKit
 
+// 自定义 NSTextView 子类处理全局快捷键
+class CustomTextView: NSTextView {
+    weak var coordinator: AdvancedTextEditor.Coordinator?
+    
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard let coordinator = coordinator else {
+            return super.performKeyEquivalent(with: event)
+        }
+        
+        let modifierFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let keyCode = event.charactersIgnoringModifiers?.lowercased() ?? ""
+        
+        // 处理 Cmd+B (加粗)
+        if modifierFlags == .command && keyCode == "b" {
+            coordinator.toggleBold(self)
+            return true
+        }
+        
+        // 处理 Cmd+Z (撤销)
+        if modifierFlags == .command && keyCode == "z" {
+            coordinator.undo(self)
+            return true
+        }
+        
+        // 处理 Cmd+Shift+Z (重做)
+        if modifierFlags == [.command, .shift] && keyCode == "z" {
+            coordinator.redo(self)
+            return true
+        }
+        
+        return super.performKeyEquivalent(with: event)
+    }
+}
+
 struct AdvancedTextEditor: NSViewRepresentable {
     @Binding var text: String
     var onBoldToggle: (() -> Void)?
     
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSTextView.scrollableTextView()
-        let textView = scrollView.documentView as! NSTextView
+        
+        // 创建自定义 TextView 替换默认的
+        let customTextView = CustomTextView()
+        customTextView.coordinator = context.coordinator
+        scrollView.documentView = customTextView
+        
+        let textView = customTextView
         
         textView.delegate = context.coordinator
         textView.isRichText = false
