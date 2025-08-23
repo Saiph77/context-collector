@@ -15,7 +15,10 @@ swiftc -o "Context Collector.app/Contents/MacOS/ContextCollector" \
     Sources/ClipboardService.swift \
     Sources/StorageService.swift \
     Sources/HotkeyService.swift \
-    Sources/CaptureWindow.swift \
+    Sources/Views/AdvancedTextEditor.swift \
+    Sources/Views/ProjectComponents.swift \
+    Sources/Views/NewProjectDialog.swift \
+    Sources/Views/CaptureWindow.swift \
     Sources/main.swift
 
 if [ $? -eq 0 ]; then
