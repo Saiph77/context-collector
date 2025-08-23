@@ -15,6 +15,9 @@ swiftc -o "Context Collector.app/Contents/MacOS/ContextCollector" \
     Sources/ClipboardService.swift \
     Sources/StorageService.swift \
     Sources/HotkeyService.swift \
+    Sources/WindowManager.swift \
+    Sources/Views/KeyboardNavigationHandler.swift \
+    Sources/Views/ProjectSelectionView.swift \
     Sources/Views/AdvancedTextEditor.swift \
     Sources/Views/ProjectComponents.swift \
     Sources/Views/NewProjectDialog.swift \
