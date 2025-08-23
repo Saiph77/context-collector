@@ -6,6 +6,7 @@ class StorageService {
     private let baseDirectory: URL
     private let dateFormatter: DateFormatter
     private let timeFormatter: DateFormatter
+    private let userDefaults = UserDefaults.standard
     
     private init() {
         self.baseDirectory = FileManager.default.homeDirectoryForCurrentUser
@@ -157,5 +158,21 @@ class StorageService {
         }
         
         return sanitized
+    }
+    
+    // MARK: - 默认项目记忆功能
+    
+    /// 获取上次选择的项目
+    func getLastSelectedProject() -> String? {
+        return userDefaults.string(forKey: "lastSelectedProject")
+    }
+    
+    /// 保存当前选择的项目
+    func saveLastSelectedProject(_ project: String?) {
+        if let project = project {
+            userDefaults.set(project, forKey: "lastSelectedProject")
+        } else {
+            userDefaults.removeObject(forKey: "lastSelectedProject")
+        }
     }
 }

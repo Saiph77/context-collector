@@ -9,6 +9,8 @@ struct CaptureWindow: View {
     @State private var isLoading: Bool = false
     @State private var showingNewProjectDialog: Bool = false
     @State private var newProjectName: String = ""
+    @State private var selectedProjectIndex: Int = -1 // -1表示选择Inbox，0+表示项目索引
+    @FocusState private var isTitleFocused: Bool
     
     var onClose: (() -> Void)?
     var onMinimize: (() -> Void)?
@@ -27,7 +29,7 @@ struct CaptureWindow: View {
                     icon: "📥",
                     isSelected: selectedProject == nil
                 ) {
-                    selectedProject = nil
+                    selectProject(nil, index: -1)
                 }
                 
                 Divider()
@@ -35,13 +37,13 @@ struct CaptureWindow: View {
                 // 项目列表
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 4) {
-                        ForEach(projects, id: \.self) { project in
+                        ForEach(Array(projects.enumerated()), id: \.element) { index, project in
                             ProjectButton(
                                 name: project,
                                 icon: "📁",
                                 isSelected: selectedProject == project
                             ) {
-                                selectedProject = project
+                                selectProject(project, index: index)
                             }
                         }
                     }
@@ -118,6 +120,7 @@ struct CaptureWindow: View {
                         .frame(width: 50, alignment: .leading)
                     TextField("输入标题", text: $title)
                         .textFieldStyle(.roundedBorder)
+                        .focused($isTitleFocused)
                 }
                 .padding(.horizontal)
                 
@@ -173,7 +176,17 @@ struct CaptureWindow: View {
         .frame(width: 800, height: 500)
         .onAppear {
             loadInitialData()
+            // 自动焦点到标题输入框
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                isTitleFocused = true
+            }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            // 窗口成为焦点时设置键盘事件监听
+        }
+        .background(KeyEventHandler { event in
+            handleKeyDown(event)
+        })
         .sheet(isPresented: $showingNewProjectDialog) {
             NewProjectDialog(
                 projectName: $newProjectName,
@@ -191,6 +204,23 @@ struct CaptureWindow: View {
     private func loadInitialData() {
         print("📋 加载初始数据")
         projects = StorageService.shared.getProjects()
+        
+        // 加载默认选择的项目
+        let lastProject = StorageService.shared.getLastSelectedProject()
+        if let lastProject = lastProject {
+            if projects.contains(lastProject) {
+                selectedProject = lastProject
+                selectedProjectIndex = projects.firstIndex(of: lastProject) ?? -1
+            } else {
+                // 如果上次的项目不存在了，选择Inbox
+                selectedProject = nil
+                selectedProjectIndex = -1
+            }
+        } else {
+            selectedProject = nil
+            selectedProjectIndex = -1
+        }
+        
         loadClipboardContent()
     }
     
@@ -221,6 +251,9 @@ struct CaptureWindow: View {
     private func saveContent() {
         print("💾 保存内容")
         
+        // 保存当前选择的项目作为默认项目
+        StorageService.shared.saveLastSelectedProject(selectedProject)
+        
         if let savedPath = StorageService.shared.saveContent(content, title: title, project: selectedProject) {
             print("✅ 保存成功: \(savedPath.path)")
             
@@ -241,10 +274,101 @@ struct CaptureWindow: View {
         if StorageService.shared.createProject(name: name) {
             print("✅ 项目创建成功")
             projects = StorageService.shared.getProjects()
-            selectedProject = name
+            selectProject(name, index: projects.firstIndex(of: name) ?? -1)
         } else {
             print("❌ 项目创建失败")
         }
     }
     
+    // MARK: - 新增的辅助方法
+    
+    /// 选择项目并更新索引
+    private func selectProject(_ project: String?, index: Int) {
+        selectedProject = project
+        selectedProjectIndex = index
+        print("📂 选择项目: \(project ?? "Inbox"), 索引: \(index)")
+    }
+    
+    /// 键盘事件处理
+    private func handleKeyDown(_ event: NSEvent) -> Bool {
+        guard !isTitleFocused else { return false } // 如果标题输入框有焦点，不处理方向键
+        
+        switch event.keyCode {
+        case 126: // 上箭头
+            moveSelectionUp()
+            return true
+        case 125: // 下箭头
+            moveSelectionDown()
+            return true
+        default:
+            return false
+        }
+    }
+    
+    /// 向上移动选择
+    private func moveSelectionUp() {
+        if selectedProjectIndex > -1 {
+            selectedProjectIndex -= 1
+            selectProjectByIndex(selectedProjectIndex)
+        } else if selectedProjectIndex == -1 && !projects.isEmpty {
+            // 从Inbox向上到最后一个项目
+            selectedProjectIndex = projects.count - 1
+            selectProjectByIndex(selectedProjectIndex)
+        }
+    }
+    
+    /// 向下移动选择
+    private func moveSelectionDown() {
+        if selectedProjectIndex < projects.count - 1 {
+            selectedProjectIndex += 1
+            selectProjectByIndex(selectedProjectIndex)
+        } else if selectedProjectIndex == projects.count - 1 {
+            // 从最后一个项目向下到Inbox
+            selectProject(nil, index: -1)
+        } else if selectedProjectIndex == -1 && !projects.isEmpty {
+            // 从Inbox向下到第一个项目
+            selectProject(projects[0], index: 0)
+        }
+    }
+    
+    /// 根据索引选择项目
+    private func selectProjectByIndex(_ index: Int) {
+        if index == -1 {
+            selectProject(nil, index: -1)
+        } else if index >= 0 && index < projects.count {
+            selectProject(projects[index], index: index)
+        }
+    }
+    
+}
+
+// MARK: - 键盘事件处理器
+struct KeyEventHandler: NSViewRepresentable {
+    let onKeyDown: (NSEvent) -> Bool
+    
+    func makeNSView(context: Context) -> NSView {
+        let view = KeyCaptureView()
+        view.onKeyDown = onKeyDown
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {
+        if let view = nsView as? KeyCaptureView {
+            view.onKeyDown = onKeyDown
+        }
+    }
+}
+
+class KeyCaptureView: NSView {
+    var onKeyDown: ((NSEvent) -> Bool)?
+    
+    override var acceptsFirstResponder: Bool { true }
+    
+    override func keyDown(with event: NSEvent) {
+        if let handler = onKeyDown, handler(event) {
+            // 事件已处理
+            return
+        }
+        super.keyDown(with: event)
+    }
 }
