@@ -21,6 +21,7 @@ swiftc -o "Context Collector.app/Contents/MacOS/ContextCollector" \
     Sources/Views/AdvancedTextEditor.swift \
     Sources/Views/ProjectComponents.swift \
     Sources/Views/NewProjectDialog.swift \
+    Sources/Views/TitleField.swift \
     Sources/Views/CaptureWindow.swift \
     Sources/main.swift
 

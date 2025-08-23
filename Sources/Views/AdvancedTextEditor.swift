@@ -4,6 +4,7 @@ import AppKit
 
 struct AdvancedTextEditor: NSViewRepresentable {
     @Binding var text: String
+    @Binding var isFocused: Bool
     var onBoldToggle: (() -> Void)?
     
     func makeNSView(context: Context) -> NSScrollView {
@@ -14,6 +15,17 @@ struct AdvancedTextEditor: NSViewRepresentable {
         context.coordinator.textView = textView
         
         textView.delegate = context.coordinator
+        
+        // 捕获 Cmd + A 快捷键
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "a" {
+                if textView.window?.firstResponder == textView {
+                    textView.selectAll(nil)
+                    return nil // 吞掉事件，不继续传递
+                }
+            }
+            return event
+        }
         
         // 使用一个简单的方法：给 textView 设置一个自定义的 performKeyEquivalent 处理
         setupKeyboardHandling(for: textView, coordinator: context.coordinator)
@@ -29,8 +41,10 @@ struct AdvancedTextEditor: NSViewRepresentable {
         // 添加快捷键处理 - 使用 NSTextView 的内置机制
         textView.menu = createContextMenu(for: textView, coordinator: context.coordinator)
         
-        // 为 coordinator 设置 textView 引用，用于快捷键处理
-        context.coordinator.textView = textView
+        // 设置焦点状态监听
+        DispatchQueue.main.async {
+            context.coordinator.setupFocusMonitoring(for: textView)
+        }
         
         return scrollView
     }
@@ -99,6 +113,14 @@ struct AdvancedTextEditor: NSViewRepresentable {
         redoItem.target = coordinator
         menu.addItem(redoItem)
         
+        // 添加全选菜单项
+        menu.addItem(NSMenuItem.separator())
+        
+        let selectAllItem = NSMenuItem(title: "全选 (⌘A)", action: #selector(Coordinator.selectAll(_:)), keyEquivalent: "a")
+        selectAllItem.keyEquivalentModifierMask = .command
+        selectAllItem.target = coordinator
+        menu.addItem(selectAllItem)
+        
         return menu
     }
     
@@ -115,6 +137,12 @@ struct AdvancedTextEditor: NSViewRepresentable {
         func handleKeyEvent(_ event: NSEvent, textView: NSTextView) -> Bool {
             let modifierFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             let keyCode = event.charactersIgnoringModifiers?.lowercased() ?? ""
+            
+            // 处理 Cmd+A (全选)
+            if modifierFlags == .command && keyCode == "a" {
+                selectAll(textView)
+                return true
+            }
             
             // 处理 Cmd+B (加粗)
             if modifierFlags == .command && keyCode == "b" {
@@ -183,6 +211,40 @@ struct AdvancedTextEditor: NSViewRepresentable {
             guard let textView = self.textView else { return }
             textView.undoManager?.redo()
             parent.text = textView.string
+        }
+        
+        // 全选功能
+        @objc func selectAll(_ sender: AnyObject) {
+            guard let textView = self.textView else { return }
+            textView.selectAll(sender)
+        }
+        
+        // 设置焦点状态监听 - 使用textDidChange和点击检测
+        func setupFocusMonitoring(for textView: NSTextView) {
+            // 使用更简单但有效的方法：监听文本改变和鼠标点击
+            NotificationCenter.default.addObserver(
+                forName: NSText.didChangeNotification,
+                object: textView,
+                queue: .main
+            ) { [weak self] _ in
+                if textView.window?.firstResponder == textView {
+                    print("📝 文本编辑器有焦点（通过文本改变检测）")
+                    DispatchQueue.main.async {
+                        self?.parent.isFocused = true
+                    }
+                }
+            }
+            
+            // 定期检查焦点状态
+            Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                let isFirstResponder = textView.window?.firstResponder == textView
+                if self?.parent.isFocused != isFirstResponder {
+                    print("📝 文本编辑器焦点状态变化: \(isFirstResponder)")
+                    DispatchQueue.main.async {
+                        self?.parent.isFocused = isFirstResponder
+                    }
+                }
+            }
         }
     }
 }

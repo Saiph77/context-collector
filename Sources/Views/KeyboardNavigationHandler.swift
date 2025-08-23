@@ -26,10 +26,8 @@ class KeyCaptureView: NSView {
     
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        // 当视图添加到窗口时，确保它成为第一响应者
-        DispatchQueue.main.async {
-            self.window?.makeFirstResponder(self)
-        }
+        // 不再自动成为第一响应者，避免与SwiftUI的FocusState冲突
+        print("📍 KeyCaptureView 已添加到窗口")
     }
     
     override func keyDown(with event: NSEvent) {
@@ -57,35 +55,45 @@ class KeyboardNavigationManager: ObservableObject {
     }
     
     /// 键盘事件处理
-    func handleKeyDown(_ event: NSEvent, isTitleFocused: Bool) -> Bool {
-        print("🎯 KeyboardNavigationManager 处理按键: keyCode=\(event.keyCode), isTitleFocused=\(isTitleFocused)")
+    func handleKeyDown(_ event: NSEvent, isTitleFocused: Bool, isContentFocused: Bool) -> Bool {
+        print("🎯 键盘事件: keyCode=\(event.keyCode), 标题焦点: \(isTitleFocused), 内容焦点: \(isContentFocused)")
+
+        // 处理项目导航的条件：
+        // 1. 焦点不在任何编辑框时（项目列表区域）
+        // 2. 焦点在标题栏时，允许上下键用于项目导航（因为标题栏是单行，不需要上下键移动光标）
         
-        guard !isTitleFocused else { 
-            print("⏸️ 标题输入框有焦点，跳过方向键处理")
-            return false 
-        } // 如果标题输入框有焦点，不处理方向键
+        // 只有内容编辑器有焦点时才完全忽略导航键
+        if isContentFocused {
+            print("⏸️ 焦点在内容编辑器内，忽略导航键事件")
+            return false // 内容编辑器需要方向键用于光标移动
+        }
+        
+        // 标题栏焦点时，只处理上下方向键（用于项目导航），左右键让TextField处理
+        if isTitleFocused && (event.keyCode == 123 || event.keyCode == 124) {
+            print("➡️ 标题栏焦点，左右键交给TextField处理")
+            return false // 让TextField处理左右键
+        }
         
         switch event.keyCode {
         case 126: // 上箭头
-            print("⬆️ 处理上箭头")
+            print("⬆️ 处理上箭头进行项目导航")
             moveSelectionUp()
             return true
         case 125: // 下箭头
-            print("⬇️ 处理下箭头")
+            print("⬇️ 处理下箭头进行项目导航")
             moveSelectionDown()
             return true
         case 36: // Enter键
-            print("↵ 处理Enter键")
+            print("↵ 处理Enter键确认项目选择")
             confirmSelection()
             return true
         default:
-            print("❓ 未处理的按键: \(event.keyCode)")
             return false
         }
     }
     
     /// 向上移动选择
-    private func moveSelectionUp() {
+    func moveSelectionUp() {
         if selectedProjectIndex > -1 {
             selectedProjectIndex -= 1
             selectProjectByIndex(selectedProjectIndex)
@@ -97,7 +105,7 @@ class KeyboardNavigationManager: ObservableObject {
     }
     
     /// 向下移动选择
-    private func moveSelectionDown() {
+    func moveSelectionDown() {
         if selectedProjectIndex < projects.count - 1 {
             selectedProjectIndex += 1
             selectProjectByIndex(selectedProjectIndex)
@@ -127,7 +135,7 @@ class KeyboardNavigationManager: ObservableObject {
     }
     
     /// 确认选择当前键盘聚焦的项目
-    private func confirmSelection() {
+    func confirmSelection() {
         selectProjectByIndex(selectedProjectIndex)
     }
     

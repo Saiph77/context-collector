@@ -17,6 +17,19 @@ class WindowManager: ObservableObject {
             // 强制激活窗口并获得焦点
             w.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            
+            // 验证已存在窗口的激活状态
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                let isKey = w.isKeyWindow
+                let appActive = NSApp.isActive
+                print("🔍 已存在窗口激活验证: isKey=\(isKey), appActive=\(appActive)")
+                
+                if !isKey || !appActive {
+                    print("⚠️ 已存在窗口激活不完整，重试")
+                    w.makeKeyAndOrderFront(nil)
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            }
             return
         }
         
@@ -38,7 +51,21 @@ class WindowManager: ObservableObject {
         
         self.window = panel
 
-        print("✅ 捕获窗口已显示并激活")
+        // 3) 验证窗口激活状态
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            let isKey = panel.isKeyWindow
+            let isMain = panel.isMainWindow
+            let appActive = NSApp.isActive
+            print("🔍 窗口激活验证: isKey=\(isKey), isMain=\(isMain), appActive=\(appActive)")
+            
+            if !isKey || !appActive {
+                print("⚠️ 窗口激活不完整，重试激活")
+                panel.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+            } else {
+                print("✅ 捕获窗口已完全激活")
+            }
+        }
     }
     
     func hideCaptureWindow() {

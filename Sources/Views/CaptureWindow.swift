@@ -10,7 +10,8 @@ struct CaptureWindow: View {
     @State private var showingNewProjectDialog: Bool = false
     @State private var newProjectName: String = ""
     @StateObject private var keyboardNav = KeyboardNavigationManager()
-    @FocusState private var isTitleFocused: Bool
+    @State private var isTitleFocused: Bool = false
+    @State private var isContentEditorFocused: Bool = false
     
     var onClose: (() -> Void)?
     var onMinimize: (() -> Void)?
@@ -72,9 +73,13 @@ struct CaptureWindow: View {
                 HStack {
                     Text("标题:")
                         .frame(width: 50, alignment: .leading)
-                    TextField("输入标题", text: $title)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($isTitleFocused)
+                    TitleField(
+                        text: $title,
+                        isFocused: $isTitleFocused,
+                        onArrowUp: { keyboardNav.moveSelectionUp() },
+                        onArrowDown: { keyboardNav.moveSelectionDown() }
+                    )
+                    .frame(height: 24) // 让布局接近原 TextField
                 }
                 .padding(.horizontal)
                 
@@ -97,8 +102,11 @@ struct CaptureWindow: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                        AdvancedTextEditor(text: $content)
-                            .border(Color.gray.opacity(0.3))
+                        AdvancedTextEditor(
+                            text: $content,
+                            isFocused: $isContentEditorFocused
+                        )
+                        .border(Color.gray.opacity(0.3))
                             .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
                                 // 窗口成为焦点时，设置快捷键处理
                             }
@@ -131,12 +139,30 @@ struct CaptureWindow: View {
         .onAppear {
             loadInitialData()
         }
-        .background(
-            KeyEventHandler { event in
-                return keyboardNav.handleKeyDown(event, isTitleFocused: isTitleFocused)
+        .onKeyPress(.upArrow) {
+            if !isContentEditorFocused {
+                print("⬆️ 根视图处理上箭头（兜底逻辑）")
+                keyboardNav.moveSelectionUp()
+                return .handled
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        )
+            return .ignored
+        }
+        .onKeyPress(.downArrow) {
+            if !isContentEditorFocused {
+                print("⬇️ 根视图处理下箭头（兜底逻辑）")
+                keyboardNav.moveSelectionDown()
+                return .handled
+            }
+            return .ignored
+        }
+        .onKeyPress(.return) {
+            if !isContentEditorFocused {
+                print("↵ 根视图处理Enter键（兜底逻辑）")
+                keyboardNav.confirmSelection()
+                return .handled
+            }
+            return .ignored
+        }
         .sheet(isPresented: $showingNewProjectDialog) {
             NewProjectDialog(
                 projectName: $newProjectName,
