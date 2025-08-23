@@ -1,39 +1,6 @@
 import SwiftUI
 import AppKit
 
-// 自定义 NSTextView 子类处理全局快捷键
-class CustomTextView: NSTextView {
-    weak var coordinator: AdvancedTextEditor.Coordinator?
-    
-    override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard let coordinator = coordinator else {
-            return super.performKeyEquivalent(with: event)
-        }
-        
-        let modifierFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let keyCode = event.charactersIgnoringModifiers?.lowercased() ?? ""
-        
-        // 处理 Cmd+B (加粗)
-        if modifierFlags == .command && keyCode == "b" {
-            coordinator.toggleBold(self)
-            return true
-        }
-        
-        // 处理 Cmd+Z (撤销)
-        if modifierFlags == .command && keyCode == "z" {
-            coordinator.undo(self)
-            return true
-        }
-        
-        // 处理 Cmd+Shift+Z (重做)
-        if modifierFlags == [.command, .shift] && keyCode == "z" {
-            coordinator.redo(self)
-            return true
-        }
-        
-        return super.performKeyEquivalent(with: event)
-    }
-}
 
 struct AdvancedTextEditor: NSViewRepresentable {
     @Binding var text: String
@@ -41,15 +8,15 @@ struct AdvancedTextEditor: NSViewRepresentable {
     
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSTextView.scrollableTextView()
+        let textView = scrollView.documentView as! NSTextView
         
-        // 创建自定义 TextView 替换默认的
-        let customTextView = CustomTextView()
-        customTextView.coordinator = context.coordinator
-        scrollView.documentView = customTextView
-        
-        let textView = customTextView
+        // 为textView设置coordinator引用，用于快捷键处理
+        context.coordinator.textView = textView
         
         textView.delegate = context.coordinator
+        
+        // 使用一个简单的方法：给 textView 设置一个自定义的 performKeyEquivalent 处理
+        setupKeyboardHandling(for: textView, coordinator: context.coordinator)
         textView.isRichText = false
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
@@ -77,6 +44,38 @@ struct AdvancedTextEditor: NSViewRepresentable {
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
+    }
+    
+    // 为现有 NSTextView 设置键盘处理的简单方法
+    private func setupKeyboardHandling(for textView: NSTextView, coordinator: Coordinator) {
+        // 使用 NSEvent 全局监听器，只监听我们的窗口
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // 检查事件是否来自我们的 textView
+            if event.window == textView.window && textView.window?.firstResponder == textView {
+                let modifierFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                let keyCode = event.charactersIgnoringModifiers?.lowercased() ?? ""
+                
+                // 处理 Cmd+B (加粗)
+                if modifierFlags == .command && keyCode == "b" {
+                    coordinator.toggleBold(textView)
+                    return nil // 吞掉事件，不继续传递
+                }
+                
+                // 处理 Cmd+Z (撤销)
+                if modifierFlags == .command && keyCode == "z" {
+                    coordinator.undo(textView)
+                    return nil // 吞掉事件，不继续传递
+                }
+                
+                // 处理 Cmd+Shift+Z (重做)
+                if modifierFlags == [.command, .shift] && keyCode == "z" {
+                    coordinator.redo(textView)
+                    return nil // 吞掉事件，不继续传递
+                }
+            }
+            
+            return event // 如果不是我们处理的事件，继续传递
+        }
     }
     
     private func createContextMenu(for textView: NSTextView, coordinator: Coordinator) -> NSMenu {
@@ -109,6 +108,33 @@ struct AdvancedTextEditor: NSViewRepresentable {
         
         init(_ parent: AdvancedTextEditor) {
             self.parent = parent
+            super.init()
+        }
+        
+        // 处理键盘事件的方法
+        func handleKeyEvent(_ event: NSEvent, textView: NSTextView) -> Bool {
+            let modifierFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let keyCode = event.charactersIgnoringModifiers?.lowercased() ?? ""
+            
+            // 处理 Cmd+B (加粗)
+            if modifierFlags == .command && keyCode == "b" {
+                toggleBold(textView)
+                return true
+            }
+            
+            // 处理 Cmd+Z (撤销)
+            if modifierFlags == .command && keyCode == "z" {
+                undo(textView)
+                return true
+            }
+            
+            // 处理 Cmd+Shift+Z (重做)
+            if modifierFlags == [.command, .shift] && keyCode == "z" {
+                redo(textView)
+                return true
+            }
+            
+            return false
         }
         
         func textDidChange(_ notification: Notification) {
