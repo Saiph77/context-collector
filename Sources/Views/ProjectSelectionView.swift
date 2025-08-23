@@ -4,6 +4,7 @@ import SwiftUI
 struct ProjectSelectionView: View {
     let projects: [String]
     let selectedProject: String?
+    let keyboardSelectedIndex: Int  // 键盘选择的索引 (-1为Inbox，0+为项目索引)
     let onProjectSelected: (String?, Int) -> Void
     let onNewProject: () -> Void
     
@@ -17,7 +18,8 @@ struct ProjectSelectionView: View {
             ProjectButton(
                 name: "Inbox",
                 icon: "📥",
-                isSelected: selectedProject == nil
+                isSelected: selectedProject == nil,
+                isKeyboardSelected: keyboardSelectedIndex == -1
             ) {
                 onProjectSelected(nil, -1)
             }
@@ -31,7 +33,8 @@ struct ProjectSelectionView: View {
                         ProjectButton(
                             name: project,
                             icon: "📁",
-                            isSelected: selectedProject == project
+                            isSelected: selectedProject == project,
+                            isKeyboardSelected: keyboardSelectedIndex == index
                         ) {
                             onProjectSelected(project, index)
                         }

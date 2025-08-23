@@ -13,7 +13,10 @@ class WindowManager: ObservableObject {
         NSApp.setActivationPolicy(.accessory)  // 关键一步（可在关闭时切回）
         
         if let w = window {
-            w.orderFrontRegardless()           // 面板用这个更稳定
+            w.orderFrontRegardless()
+            // 强制激活窗口并获得焦点
+            w.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
             return
         }
         
@@ -26,12 +29,16 @@ class WindowManager: ObservableObject {
                                      content: NSHostingView(rootView: captureView))
         panel.title = "Context Collector"
 
-        // 2) 直接前置到最前，无需激活其他 App
+        // 2) 显示并激活窗口
         panel.orderFrontRegardless()
+        panel.makeKeyAndOrderFront(nil)
+        
+        // 激活应用程序并获得焦点
+        NSApp.activate(ignoringOtherApps: true)
+        
         self.window = panel
 
-        // 保持应用不抢前台，但如果你希望高亮一下菜单栏图标，可按需 NSApp.activate(...)
-        print("✅ 捕获窗口已显示（Accessory + Panel + ShieldLevel）")
+        print("✅ 捕获窗口已显示并激活")
     }
     
     func hideCaptureWindow() {
@@ -101,15 +108,14 @@ class WindowManager: ObservableObject {
     }
     
     private func makeCapturePanel(frame: NSRect, content: NSView) -> NSPanel {
-        let panel = NSPanel(
+        let panel = ActivatablePanel(
             contentRect: frame,
-            styleMask: [.nonactivatingPanel, .titled, .closable], // 非激活 + 可关闭标题栏
+            styleMask: [.titled, .closable], // 移除nonactivatingPanel，让窗口可以被激活
             backing: .buffered,
             defer: false
         )
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
-        panel.becomesKeyOnlyIfNeeded = true   // 需要交互时可成为 key
         panel.worksWhenModal = true
         panel.contentView = content
 
@@ -125,4 +131,10 @@ class WindowManager: ObservableObject {
         }
         return panel
     }
+}
+
+// MARK: - 可激活的面板
+class ActivatablePanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
 }

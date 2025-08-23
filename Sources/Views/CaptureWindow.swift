@@ -21,6 +21,7 @@ struct CaptureWindow: View {
             ProjectSelectionView(
                 projects: projects,
                 selectedProject: selectedProject,
+                keyboardSelectedIndex: keyboardNav.selectedProjectIndex,
                 onProjectSelected: { project, index in
                     selectProject(project, index: index)
                 },
@@ -129,18 +130,13 @@ struct CaptureWindow: View {
         .frame(width: 800, height: 500)
         .onAppear {
             loadInitialData()
-            // 设置键盘导航
-            keyboardNav.setup(projects: projects) { project, index in
-                selectProject(project, index: index)
-            }
-            // 自动焦点到标题输入框
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                isTitleFocused = true
-            }
         }
-        .background(KeyEventHandler { event in
-            keyboardNav.handleKeyDown(event, isTitleFocused: isTitleFocused)
-        })
+        .background(
+            KeyEventHandler { event in
+                return keyboardNav.handleKeyDown(event, isTitleFocused: isTitleFocused)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        )
         .sheet(isPresented: $showingNewProjectDialog) {
             NewProjectDialog(
                 projectName: $newProjectName,
@@ -167,10 +163,19 @@ struct CaptureWindow: View {
             selectedProject = nil
         }
         
+        // 设置键盘导航
+        keyboardNav.setup(projects: projects) { project, index in
+            selectProject(project, index: index)
+        }
         // 更新键盘导航状态
         keyboardNav.setSelectedProject(selectedProject, in: projects)
         
         loadClipboardContent()
+        
+        // 自动聚焦到标题输入框 - 延迟稍微增加确保界面完全加载
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            isTitleFocused = true
+        }
     }
     
     private func loadClipboardContent() {

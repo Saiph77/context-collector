@@ -22,12 +22,24 @@ class KeyCaptureView: NSView {
     var onKeyDown: ((NSEvent) -> Bool)?
     
     override var acceptsFirstResponder: Bool { true }
+    override var canBecomeKeyView: Bool { true }
+    
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // 当视图添加到窗口时，确保它成为第一响应者
+        DispatchQueue.main.async {
+            self.window?.makeFirstResponder(self)
+        }
+    }
     
     override func keyDown(with event: NSEvent) {
+        print("🎹 KeyCaptureView 接收到按键: keyCode=\(event.keyCode)")
         if let handler = onKeyDown, handler(event) {
             // 事件已处理
+            print("✅ 按键事件已被处理")
             return
         }
+        print("➡️ 按键事件传递给父类")
         super.keyDown(with: event)
     }
 }
@@ -46,16 +58,28 @@ class KeyboardNavigationManager: ObservableObject {
     
     /// 键盘事件处理
     func handleKeyDown(_ event: NSEvent, isTitleFocused: Bool) -> Bool {
-        guard !isTitleFocused else { return false } // 如果标题输入框有焦点，不处理方向键
+        print("🎯 KeyboardNavigationManager 处理按键: keyCode=\(event.keyCode), isTitleFocused=\(isTitleFocused)")
+        
+        guard !isTitleFocused else { 
+            print("⏸️ 标题输入框有焦点，跳过方向键处理")
+            return false 
+        } // 如果标题输入框有焦点，不处理方向键
         
         switch event.keyCode {
         case 126: // 上箭头
+            print("⬆️ 处理上箭头")
             moveSelectionUp()
             return true
         case 125: // 下箭头
+            print("⬇️ 处理下箭头")
             moveSelectionDown()
             return true
+        case 36: // Enter键
+            print("↵ 处理Enter键")
+            confirmSelection()
+            return true
         default:
+            print("❓ 未处理的按键: \(event.keyCode)")
             return false
         }
     }
@@ -100,6 +124,11 @@ class KeyboardNavigationManager: ObservableObject {
         selectedProjectIndex = index
         onProjectSelected?(project, index)
         print("📂 选择项目: \(project ?? "Inbox"), 索引: \(index)")
+    }
+    
+    /// 确认选择当前键盘聚焦的项目
+    private func confirmSelection() {
+        selectProjectByIndex(selectedProjectIndex)
     }
     
     /// 设置当前选择的项目索引

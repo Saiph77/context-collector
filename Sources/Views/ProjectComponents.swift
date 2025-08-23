@@ -5,6 +5,7 @@ struct ProjectButton: View {
     let name: String
     let icon: String
     let isSelected: Bool
+    let isKeyboardSelected: Bool // 是否被键盘选中
     let action: () -> Void
     
     @State private var isHovered = false
@@ -35,6 +36,8 @@ struct ProjectButton: View {
     private var backgroundColor: Color {
         if isSelected {
             return Color.accentColor
+        } else if isKeyboardSelected {
+            return Color.accentColor.opacity(0.3) // 键盘选择时的视觉反馈
         } else if isHovered {
             return Color.gray.opacity(0.2)
         } else {
