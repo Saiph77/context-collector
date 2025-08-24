@@ -34,7 +34,7 @@ class WindowManager: ObservableObject {
         }
         
         let captureView = CaptureWindow(
-            onClose: { [weak self] in self?.hideCaptureWindow() },
+            onClose: { [weak self] afterSave in self?.hideCaptureWindow(afterSave: afterSave) },
             onMinimize: { [weak self] in self?.minimizeCaptureWindow() }
         )
         let targetFrame = calculateWindowPosition()
@@ -68,13 +68,19 @@ class WindowManager: ObservableObject {
         }
     }
     
-    func hideCaptureWindow() {
-        print("🙈 隐藏捕获窗口")
+    func hideCaptureWindow(afterSave: Bool) {
+        print("🙈 隐藏捕获窗口 afterSave=\(afterSave)")
         window?.orderOut(nil)
         window = nil
 
-        // 3) 关闭后切回常规，以恢复 Dock 图标/常规行为（如果你希望一直是后台工具，也可不切回）
-        NSApp.setActivationPolicy(.regular)
+        if afterSave {
+            // 保存后不切回 .regular，避免跨 Space 抢焦点
+            NSApp.deactivate()
+            // 保持 .accessory，防止 Dock/主窗口被激活
+        } else {
+            // 非保存关闭（如取消/手动关闭）保留原行为
+            NSApp.setActivationPolicy(.regular)
+        }
     }
     
     func minimizeCaptureWindow() {

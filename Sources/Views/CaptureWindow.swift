@@ -13,7 +13,7 @@ struct CaptureWindow: View {
     @State private var isTitleFocused: Bool = false
     @State private var isContentEditorFocused: Bool = false
     
-    var onClose: (() -> Void)?
+    var onClose: ((_ afterSave: Bool) -> Void)?
     var onMinimize: (() -> Void)?
     
     var body: some View {
@@ -51,7 +51,7 @@ struct CaptureWindow: View {
                     
                     // 关闭按钮
                     Button("❌") {
-                        onClose?()
+                        onClose?(false)
                     }
                     .buttonStyle(.plain)
                     .help("关闭窗口")
@@ -129,7 +129,7 @@ struct CaptureWindow: View {
                     .keyboardShortcut("s", modifiers: .command)
                     
                     Button("取消") {
-                        onClose?()
+                        onClose?(false)
                     }
                 }
                 .padding()
@@ -249,8 +249,8 @@ struct CaptureWindow: View {
         if let savedPath = StorageService.shared.saveContent(content, title: title, project: selectedProject) {
             print("✅ 保存成功: \(savedPath.path)")
             
-            // 立即关闭窗口
-            onClose?()
+            // 立即关闭窗口（保存后）
+            onClose?(true)
         } else {
             print("❌ 保存失败")
         }
