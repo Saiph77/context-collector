@@ -140,19 +140,31 @@ struct CaptureWindow: View {
             loadInitialData()
         }
         .onKeyPress(.upArrow) {
-            if !isContentEditorFocused {
-                print("⬆️ 根视图处理上箭头（兜底逻辑）")
+            if isTitleFocused {               // ✅ 标题栏内，拦截导航
+                print("⬆️ 标题栏上箭头，切换项目")
                 keyboardNav.moveSelectionUp()
                 return .handled
             }
-            return .ignored
+            if !isContentEditorFocused {      // ✅ 只要不在编辑器，就导航
+                print("⬆️ 根视图处理上箭头（项目导航）")
+                keyboardNav.moveSelectionUp()
+                return .handled
+            }
+            print("⬆️ 内容编辑器内，交给NSTextView处理光标移动")
+            return .ignored                   // ✅ 在内容编辑器内，交给 NSTextView 处理（移动光标）
         }
         .onKeyPress(.downArrow) {
-            if !isContentEditorFocused {
-                print("⬇️ 根视图处理下箭头（兜底逻辑）")
+            if isTitleFocused {
+                print("⬇️ 标题栏下箭头，切换项目")
                 keyboardNav.moveSelectionDown()
                 return .handled
             }
+            if !isContentEditorFocused {
+                print("⬇️ 根视图处理下箭头（项目导航）")
+                keyboardNav.moveSelectionDown()
+                return .handled
+            }
+            print("⬇️ 内容编辑器内，交给NSTextView处理光标移动")
             return .ignored
         }
         .onKeyPress(.return) {

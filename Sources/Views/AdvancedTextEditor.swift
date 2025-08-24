@@ -170,6 +170,21 @@ struct AdvancedTextEditor: NSViewRepresentable {
             parent.text = textView.string
         }
         
+        // ✅ 即时焦点同步：开始/结束编辑
+        func textDidBeginEditing(_ notification: Notification) {
+            if notification.object as? NSTextView === textView { 
+                print("📝 文本编辑器获得焦点（即时检测）")
+                parent.isFocused = true 
+            }
+        }
+        
+        func textDidEndEditing(_ notification: Notification) {
+            if notification.object as? NSTextView === textView { 
+                print("📝 文本编辑器失去焦点（即时检测）")
+                parent.isFocused = false 
+            }
+        }
+        
         @objc func toggleBold(_ sender: AnyObject) {
             // 使用保存的 textView 引用
             guard let textView = self.textView else { return }
@@ -219,31 +234,35 @@ struct AdvancedTextEditor: NSViewRepresentable {
             textView.selectAll(sender)
         }
         
-        // 设置焦点状态监听 - 使用textDidChange和点击检测
-        func setupFocusMonitoring(for textView: NSTextView) {
-            // 使用更简单但有效的方法：监听文本改变和鼠标点击
-            NotificationCenter.default.addObserver(
-                forName: NSText.didChangeNotification,
-                object: textView,
-                queue: .main
-            ) { [weak self] _ in
-                if textView.window?.firstResponder == textView {
-                    print("📝 文本编辑器有焦点（通过文本改变检测）")
-                    DispatchQueue.main.async {
-                        self?.parent.isFocused = true
-                    }
-                }
+        // ✅ 选择变化也更新一次（很多情况下 firstResponder 没变，但更稳）
+        @objc private func selectionChanged(_ note: Notification) {
+            guard let tv = textView else { return }
+            let isFirst = (tv.window?.firstResponder === tv)
+            if parent.isFocused != isFirst { 
+                print("📝 文本编辑器焦点状态变化（选择变化检测）: \(isFirst)")
+                parent.isFocused = isFirst 
             }
-            
-            // 定期检查焦点状态
-            Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-                let isFirstResponder = textView.window?.firstResponder == textView
-                if self?.parent.isFocused != isFirstResponder {
-                    print("📝 文本编辑器焦点状态变化: \(isFirstResponder)")
-                    DispatchQueue.main.async {
-                        self?.parent.isFocused = isFirstResponder
-                    }
-                }
+        }
+
+        // ✅ 窗口层面焦点联动（切 App / 切窗口）
+        @objc private func windowKeyChanged(_ note: Notification) {
+            guard let tv = textView else { return }
+            let isFirst = (tv.window?.firstResponder === tv)
+            if parent.isFocused != isFirst { 
+                print("📝 文本编辑器焦点状态变化（窗口焦点检测）: \(isFirst)")
+                parent.isFocused = isFirst 
+            }
+        }
+        
+        func setupFocusMonitoring(for textView: NSTextView) {
+            NotificationCenter.default.addObserver(self, selector: #selector(selectionChanged(_:)),
+                name: NSTextView.didChangeSelectionNotification, object: textView)
+
+            if let win = textView.window {
+                NotificationCenter.default.addObserver(self, selector: #selector(windowKeyChanged(_:)),
+                    name: NSWindow.didBecomeKeyNotification, object: win)
+                NotificationCenter.default.addObserver(self, selector: #selector(windowKeyChanged(_:)),
+                    name: NSWindow.didResignKeyNotification, object: win)
             }
         }
     }
