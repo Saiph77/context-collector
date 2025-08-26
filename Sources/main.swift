@@ -7,7 +7,8 @@ import CoreGraphics
 
 // MARK: - 主应用程序
 class ContextCollectorApp: NSApplication {
-    let windowManager = WindowManager()
+    var services: ServiceContainer!
+    lazy var windowManager = WindowManager(services: services)
     
     override func finishLaunching() {
         super.finishLaunching()
@@ -17,15 +18,15 @@ class ContextCollectorApp: NSApplication {
         setActivationPolicy(.regular)
         
         // 设置快捷键回调
-        HotkeyService.shared.onDoubleCmdC = { [weak self] in
+        services.hotkey.onDoubleCmdC = { [weak self] in
             print("🎯 触发双击 Cmd+C")
             DispatchQueue.main.async {
                 self?.windowManager.showCaptureWindow()
             }
         }
-        
+
         // 启动快捷键监听
-        if HotkeyService.shared.startListening() {
+        if services.hotkey.startListening() {
             print("✅ 快捷键监听已启动")
             showStartupMessage()
         } else {
@@ -59,7 +60,7 @@ class ContextCollectorApp: NSApplication {
     
     override func terminate(_ sender: Any?) {
         print("👋 Context Collector 退出")
-        HotkeyService.shared.stopListening()
+        services.hotkey.stopListening()
         super.terminate(sender)
     }
 }
@@ -85,9 +86,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 // MARK: - 程序入口
 print("=== Context Collector 启动 ===")
 
+// 构建服务容器
+let services = ServiceContainer(
+    clipboard: ClipboardService(),
+    storage: StorageService(),
+    hotkey: HotkeyService(),
+    preferences: PreferencesService()
+)
+
 // 应用启动时不设置测试内容，直接读取用户的真实剪贴板内容
 
 let app = ContextCollectorApp.shared
+app.services = services
 let delegate = AppDelegate()
 app.delegate = delegate
 
@@ -98,5 +108,4 @@ signal(SIGINT) { _ in
         NSApp.terminate(nil)
     }
 }
-
 app.run()

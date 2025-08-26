@@ -1,14 +1,12 @@
 import Foundation
 
-class StorageService {
-    static let shared = StorageService()
-    
+final class StorageService: StorageServiceType {
     private let baseDirectory: URL
     private let dateFormatter: DateFormatter
     private let timeFormatter: DateFormatter
     private let userDefaults = UserDefaults.standard
-    
-    private init() {
+
+    init() {
         self.baseDirectory = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("ContextCollector")
         

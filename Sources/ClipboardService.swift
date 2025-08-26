@@ -1,10 +1,8 @@
 import Foundation
 import AppKit
 
-class ClipboardService {
-    static let shared = ClipboardService()
-    
-    private init() {}
+final class ClipboardService: ClipboardServiceType {
+    init() {}
     
     func readClipboardText() -> String? {
         let pasteboard = NSPasteboard.general
