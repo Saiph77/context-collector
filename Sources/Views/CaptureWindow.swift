@@ -2,6 +2,9 @@ import SwiftUI
 import AppKit
 
 struct CaptureWindow: View {
+    let clipboardService: ClipboardServiceType
+    let storageService: StorageServiceType
+
     @State private var title: String = "untitled"
     @State private var content: String = ""
     @State private var selectedProject: String?
@@ -191,10 +194,10 @@ struct CaptureWindow: View {
     
     private func loadInitialData() {
         print("📋 加载初始数据")
-        projects = StorageService.shared.getProjects()
+        projects = storageService.getProjects()
         
         // 加载默认选择的项目
-        let lastProject = StorageService.shared.getLastSelectedProject()
+        let lastProject = storageService.getLastSelectedProject()
         if let lastProject = lastProject, projects.contains(lastProject) {
             selectedProject = lastProject
         } else {
@@ -224,7 +227,7 @@ struct CaptureWindow: View {
             // 稍微延迟，确保剪贴板操作完成
             Thread.sleep(forTimeInterval: 0.1)
             
-            let clipboardText = ClipboardService.shared.readClipboardText()
+            let clipboardText = clipboardService.readClipboardText()
             
             DispatchQueue.main.async {
                 self.isLoading = false
@@ -244,9 +247,9 @@ struct CaptureWindow: View {
         print("💾 保存内容")
         
         // 保存当前选择的项目作为默认项目
-        StorageService.shared.saveLastSelectedProject(selectedProject)
+        storageService.saveLastSelectedProject(selectedProject)
         
-        if let savedPath = StorageService.shared.saveContent(content, title: title, project: selectedProject) {
+        if let savedPath = storageService.saveContent(content, title: title, project: selectedProject) {
             print("✅ 保存成功: \(savedPath.path)")
             
             // 立即关闭窗口（保存后）
@@ -263,9 +266,9 @@ struct CaptureWindow: View {
     private func createNewProject(name: String) {
         print("📁 创建新项目: \(name)")
         
-        if StorageService.shared.createProject(name: name) {
+        if storageService.createProject(name: name) {
             print("✅ 项目创建成功")
-            projects = StorageService.shared.getProjects()
+            projects = storageService.getProjects()
             let newIndex = projects.firstIndex(of: name) ?? -1
             selectProject(name, index: newIndex)
             // 更新键盘导航
