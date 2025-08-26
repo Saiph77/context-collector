@@ -27,7 +27,7 @@ private final class ActionProxy: NSResponder {
     }
 
     override func save(_ sender: Any?) {
-        events.save.send(())
+        events.saveRequested.send(())
     }
 
     override func performTextFinderAction(_ sender: Any?) {
