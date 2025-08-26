@@ -24,6 +24,7 @@ swiftc -o "Context Collector.app/Contents/MacOS/ContextCollector" \
     Sources/HotkeyService.swift \
     Sources/Coordinators/CommandCoordinator.swift \
     Sources/WindowManager.swift \
+    Sources/ViewModels/CaptureViewModel.swift \
     Sources/Views/KeyboardNavigationHandler.swift \
     Sources/Views/ProjectSelectionView.swift \
     Sources/Views/AdvancedTextEditor.swift \

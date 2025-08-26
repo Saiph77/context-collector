@@ -8,8 +8,8 @@ import AppKit
 final class AppEvents {
     static let shared = AppEvents()
 
-    /// 保存动作
-    let save = PassthroughSubject<Void, Never>()
+    /// 保存请求
+    let saveRequested = PassthroughSubject<Void, Never>()
 
     /// 文本查找相关动作
     let performTextFinderAction = PassthroughSubject<NSTextFinder.Action, Never>()
