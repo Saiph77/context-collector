@@ -1,5 +1,7 @@
 import SwiftUI
 import AppKit
+import Foundation
+import Combine
 
 struct TitleField: NSViewRepresentable {
     @Binding var text: String
@@ -36,12 +38,15 @@ struct TitleField: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextFieldDelegate {
         let parent: TitleField
+        private var lastEnterTime: TimeInterval = 0
         init(_ parent: TitleField) { self.parent = parent }
 
         // 核心：拦截编辑器命令（含方向键）
         func control(_ control: NSControl,
                      textView: NSTextView,
                      doCommandBy commandSelector: Selector) -> Bool {
+            if textView.hasMarkedText { return false }
+
             print("🎯 TitleField 拦截命令: \(commandSelector)")
             switch commandSelector {
             case #selector(NSResponder.moveUp(_:)):
@@ -53,7 +58,14 @@ struct TitleField: NSViewRepresentable {
                 parent.onArrowDown()
                 return true   // 已处理，阻止默认行为
             case #selector(NSResponder.insertNewline(_:)):
-                // 可选：阻止回车插入换行（标题单行）
+                let now = Date().timeIntervalSinceReferenceDate
+                if now - lastEnterTime < 0.35 {
+                    print("💾 标题框双击回车，触发保存请求")
+                    AppEvents.shared.saveRequested.send()
+                    lastEnterTime = 0
+                } else {
+                    lastEnterTime = now
+                }
                 print("↵ 标题框阻止回车换行")
                 return true
             default:
