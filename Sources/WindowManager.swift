@@ -39,8 +39,7 @@ class WindowManager: ObservableObject {
         }
         
         let captureView = CaptureWindow(
-            clipboardService: services.clipboard,
-            storageService: services.storage,
+            services: services,
             onClose: { [weak self] afterSave in self?.hideCaptureWindow(afterSave: afterSave) },
             onMinimize: { [weak self] in self?.minimizeCaptureWindow() }
         )
