@@ -2,17 +2,15 @@ import Foundation
 import AppKit
 import Carbon
 
-class HotkeyService {
-    static let shared = HotkeyService()
-    
+final class HotkeyService: HotkeyServiceType {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var lastCmdCTime: TimeInterval = 0
     private let doubleTapThreshold: TimeInterval = 0.4
     
     var onDoubleCmdC: (() -> Void)?
-    
-    private init() {}
+
+    init() {}
     
     func startListening() -> Bool {
         guard checkAccessibilityPermission() else {

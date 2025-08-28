@@ -4,7 +4,12 @@ import CoreGraphics
 
 // MARK: - 窗口管理器
 class WindowManager: ObservableObject {
+    private let services: ServiceContainer
     private var window: NSPanel?
+
+    init(services: ServiceContainer) {
+        self.services = services
+    }
     
     func showCaptureWindow() {
         print("🪟 显示捕获窗口")
@@ -34,6 +39,8 @@ class WindowManager: ObservableObject {
         }
         
         let captureView = CaptureWindow(
+            clipboardService: services.clipboard,
+            storageService: services.storage,
             onClose: { [weak self] afterSave in self?.hideCaptureWindow(afterSave: afterSave) },
             onMinimize: { [weak self] in self?.minimizeCaptureWindow() }
         )

@@ -12,6 +12,12 @@ mkdir -p "Context Collector.app/Contents/Resources"
 # 编译所有Swift文件
 echo "📦 编译Swift源码..."
 swiftc -o "Context Collector.app/Contents/MacOS/ContextCollector" \
+    Sources/Core/Protocols/ClipboardServiceType.swift \
+    Sources/Core/Protocols/StorageServiceType.swift \
+    Sources/Core/Protocols/HotkeyServiceType.swift \
+    Sources/Core/Protocols/PreferencesServiceType.swift \
+    Sources/PreferencesService.swift \
+    Sources/Infrastructure/DI/ServiceContainer.swift \
     Sources/ClipboardService.swift \
     Sources/StorageService.swift \
     Sources/HotkeyService.swift \
