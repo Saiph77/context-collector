@@ -1,2 +1,9 @@
+# Local dev logs
 .dev-log/
+
+# macOS metadata
 .DS_Store
+**/.DS_Store
+
+# Build outputs (keep tracked app intact; ignore local rebuilds)
+Context Collector.app/
