@@ -90,6 +90,10 @@ let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
 
+// 注册标准动作代理
+let commandCoordinator = CommandCoordinator()
+commandCoordinator.install()
+
 // 信号处理
 signal(SIGINT) { _ in
     print("\n👋 收到退出信号")
