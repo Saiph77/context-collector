@@ -16,12 +16,15 @@ swiftc -o "Context Collector.app/Contents/MacOS/ContextCollector" \
     Sources/Core/Protocols/StorageServiceType.swift \
     Sources/Core/Protocols/HotkeyServiceType.swift \
     Sources/Core/Protocols/PreferencesServiceType.swift \
+    Sources/Core/EventBus/AppEvents.swift \
     Sources/PreferencesService.swift \
     Sources/Infrastructure/DI/ServiceContainer.swift \
     Sources/ClipboardService.swift \
     Sources/StorageService.swift \
     Sources/HotkeyService.swift \
+    Sources/Coordinators/CommandCoordinator.swift \
     Sources/WindowManager.swift \
+    Sources/ViewModels/CaptureViewModel.swift \
     Sources/Views/KeyboardNavigationHandler.swift \
     Sources/Views/ProjectSelectionView.swift \
     Sources/Views/AdvancedTextEditor.swift \

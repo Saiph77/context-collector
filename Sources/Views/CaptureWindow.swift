@@ -1,37 +1,37 @@
 import SwiftUI
 import AppKit
+import Combine
 
 struct CaptureWindow: View {
-    let clipboardService: ClipboardServiceType
-    let storageService: StorageServiceType
-
-    @State private var title: String = "untitled"
-    @State private var content: String = ""
-    @State private var selectedProject: String?
-    @State private var projects: [String] = []
-    @State private var isLoading: Bool = false
-    @State private var showingNewProjectDialog: Bool = false
-    @State private var newProjectName: String = ""
+    @StateObject private var viewModel: CaptureViewModel
     @StateObject private var keyboardNav = KeyboardNavigationManager()
     @State private var isTitleFocused: Bool = false
     @State private var isContentEditorFocused: Bool = false
-    
+
     var onClose: ((_ afterSave: Bool) -> Void)?
     var onMinimize: (() -> Void)?
+
+    init(services: ServiceContainer,
+         onClose: ((_ afterSave: Bool) -> Void)? = nil,
+         onMinimize: (() -> Void)? = nil) {
+        _viewModel = StateObject(wrappedValue: CaptureViewModel(services: services))
+        self.onClose = onClose
+        self.onMinimize = onMinimize
+    }
     
     var body: some View {
         HStack(spacing: 0) {
             // 左侧项目选择器
             ProjectSelectionView(
-                projects: projects,
-                selectedProject: selectedProject,
+                projects: viewModel.projects,
+                selectedProject: viewModel.selectedProject,
                 keyboardSelectedIndex: keyboardNav.selectedProjectIndex,
                 onProjectSelected: { project, index in
                     selectProject(project, index: index)
                 },
                 onNewProject: {
-                    showingNewProjectDialog = true
-                    newProjectName = ""
+                    viewModel.showingNewProjectDialog = true
+                    viewModel.newProjectName = ""
                 }
             )
             
@@ -65,7 +65,7 @@ struct CaptureWindow: View {
                 HStack {
                     Text("当前项目:")
                         .foregroundColor(.secondary)
-                    Text(selectedProject ?? "Inbox")
+                    Text(viewModel.selectedProject ?? "Inbox")
                         .foregroundColor(.accentColor)
                         .fontWeight(.medium)
                     Spacer()
@@ -77,7 +77,7 @@ struct CaptureWindow: View {
                     Text("标题:")
                         .frame(width: 50, alignment: .leading)
                     TitleField(
-                        text: $title,
+                        text: $viewModel.title,
                         isFocused: $isTitleFocused,
                         onArrowUp: { keyboardNav.moveSelectionUp() },
                         onArrowDown: { keyboardNav.moveSelectionDown() }
@@ -96,7 +96,7 @@ struct CaptureWindow: View {
                             .foregroundColor(.secondary)
                     }
                     
-                    if isLoading {
+                    if viewModel.isLoading {
                         HStack {
                             ProgressView()
                                 .scaleEffect(0.8)
@@ -106,7 +106,7 @@ struct CaptureWindow: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         AdvancedTextEditor(
-                            text: $content,
+                            text: $viewModel.content,
                             isFocused: $isContentEditorFocused
                         )
                         .border(Color.gray.opacity(0.3))
@@ -120,16 +120,17 @@ struct CaptureWindow: View {
                 // 底部按钮
                 HStack {
                     Button("重新加载剪贴板") {
-                        loadClipboardContent()
+                        viewModel.loadClipboardContent()
                     }
                     
                     Spacer()
                     
-                    Button("保存 (⌘S)") {
-                        saveContent()
+                    Button("保存") {
+                        if viewModel.saveContent() {
+                            onClose?(true)
+                        }
                     }
                     .buttonStyle(.borderedProminent)
-                    .keyboardShortcut("s", modifiers: .command)
                     
                     Button("取消") {
                         onClose?(false)
@@ -141,6 +142,11 @@ struct CaptureWindow: View {
         .frame(width: 800, height: 500)
         .onAppear {
             loadInitialData()
+        }
+        .onReceive(AppEvents.shared.saveRequested) { _ in
+            if viewModel.saveContent() {
+                onClose?(true)
+            }
         }
         .onKeyPress(.upArrow) {
             if isTitleFocused {               // ✅ 标题栏内，拦截导航
@@ -178,113 +184,47 @@ struct CaptureWindow: View {
             }
             return .ignored
         }
-        .sheet(isPresented: $showingNewProjectDialog) {
+        .sheet(isPresented: $viewModel.showingNewProjectDialog) {
             NewProjectDialog(
-                projectName: $newProjectName,
+                projectName: $viewModel.newProjectName,
                 onSave: { name in
                     createNewProject(name: name)
-                    showingNewProjectDialog = false
+                    viewModel.showingNewProjectDialog = false
                 },
                 onCancel: {
-                    showingNewProjectDialog = false
+                    viewModel.showingNewProjectDialog = false
                 }
             )
         }
     }
-    
+
     private func loadInitialData() {
         print("📋 加载初始数据")
-        projects = storageService.getProjects()
-        
-        // 加载默认选择的项目
-        let lastProject = storageService.getLastSelectedProject()
-        if let lastProject = lastProject, projects.contains(lastProject) {
-            selectedProject = lastProject
-        } else {
-            selectedProject = nil
-        }
-        
-        // 设置键盘导航
-        keyboardNav.setup(projects: projects) { project, index in
+        viewModel.loadInitialData()
+
+        keyboardNav.setup(projects: viewModel.projects) { project, index in
             selectProject(project, index: index)
         }
-        // 更新键盘导航状态
-        keyboardNav.setSelectedProject(selectedProject, in: projects)
-        
-        loadClipboardContent()
-        
-        // 自动聚焦到标题输入框 - 延迟稍微增加确保界面完全加载
+        keyboardNav.setSelectedProject(viewModel.selectedProject, in: viewModel.projects)
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             isTitleFocused = true
         }
     }
-    
-    private func loadClipboardContent() {
-        print("📋 开始加载剪贴板内容")
-        isLoading = true
-        
-        DispatchQueue.global(qos: .userInitiated).async {
-            // 稍微延迟，确保剪贴板操作完成
-            Thread.sleep(forTimeInterval: 0.1)
-            
-            let clipboardText = clipboardService.readClipboardText()
-            
-            DispatchQueue.main.async {
-                self.isLoading = false
-                
-                if let text = clipboardText, !text.isEmpty {
-                    self.content = "// 说明：\n\n\(text)"
-                    print("✅ 剪贴板内容已加载，长度: \(text.count)")
-                } else {
-                    self.content = "// 说明：\n\n"
-                    print("ℹ️ 剪贴板为空")
-                }
-            }
-        }
-    }
-    
-    private func saveContent() {
-        print("💾 保存内容")
-        
-        // 保存当前选择的项目作为默认项目
-        storageService.saveLastSelectedProject(selectedProject)
-        
-        if let savedPath = storageService.saveContent(content, title: title, project: selectedProject) {
-            print("✅ 保存成功: \(savedPath.path)")
-            
-            // 立即关闭窗口（保存后）
-            onClose?(true)
-        } else {
-            print("❌ 保存失败")
-        }
-    }
-    
-    private func saveAndClose() {
-        saveContent()
-    }
-    
+
     private func createNewProject(name: String) {
-        print("📁 创建新项目: \(name)")
-        
-        if storageService.createProject(name: name) {
-            print("✅ 项目创建成功")
-            projects = storageService.getProjects()
-            let newIndex = projects.firstIndex(of: name) ?? -1
-            selectProject(name, index: newIndex)
-            // 更新键盘导航
-            keyboardNav.setup(projects: projects) { project, index in
-                selectProject(project, index: index)
-            }
-        } else {
-            print("❌ 项目创建失败")
+        viewModel.createNewProject(name: name)
+        keyboardNav.setup(projects: viewModel.projects) { project, index in
+            selectProject(project, index: index)
         }
+        let newIndex = viewModel.projects.firstIndex(of: name) ?? -1
+        selectProject(name, index: newIndex)
     }
-    
+
     /// 选择项目并更新状态
     private func selectProject(_ project: String?, index: Int) {
-        selectedProject = project
+        viewModel.selectProject(project)
         keyboardNav.selectedProjectIndex = index
-        print("📂 选择项目: \(project ?? "Inbox"), 索引: \(index)")
     }
     
 }
