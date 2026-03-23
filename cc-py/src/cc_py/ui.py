@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from .panel_bridge import promote_to_overlay
+from .panel_bridge import prepare_overlay_mode, promote_to_overlay
 from .storage import TempProjectStorage
 
 
@@ -99,6 +99,8 @@ class CapturePanel(QtWidgets.QWidget):
 
     def present_text(self, text: str) -> None:
         self.editor.setPlainText(text)
+        # Enter overlay activation mode before first show to avoid initial Space jump.
+        prepare_overlay_mode()
         if not self.isVisible():
             self.show()
         self._place_near_cursor()

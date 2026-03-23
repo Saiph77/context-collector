@@ -7,6 +7,11 @@ import Quartz
 import objc
 
 
+def prepare_overlay_mode() -> None:
+    app = AppKit.NSApplication.sharedApplication()
+    app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)
+
+
 def _window_from_qt_widget(widget):
     ptr = int(widget.winId())
     if ptr <= 0:
@@ -30,8 +35,7 @@ def promote_to_overlay(widget) -> bool:
     if ns_window is None:
         return False
 
-    app = AppKit.NSApplication.sharedApplication()
-    app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)
+    prepare_overlay_mode()
 
     # Prefer moving the window into the currently active Space before showing.
     # Note: MoveToActiveSpace cannot be combined with CanJoinAllSpaces.
