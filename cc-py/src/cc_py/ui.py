@@ -72,13 +72,14 @@ class CapturePanel(QtWidgets.QWidget):
             handle.setScreen(screen)
 
         available = screen.availableGeometry()
-        offset = QtCore.QPoint(24, 12)
-        target = cursor_pos + offset
+        # Center the window on cursor position.
+        target_x = cursor_pos.x() - (self.width() // 2)
+        target_y = cursor_pos.y() - (self.height() // 2)
 
         max_x = available.right() - self.width() + 1
         max_y = available.bottom() - self.height() + 1
-        x = max(available.left(), min(target.x(), max_x))
-        y = max(available.top(), min(target.y(), max_y))
+        x = max(available.left(), min(target_x, max_x))
+        y = max(available.top(), min(target_y, max_y))
         self.move(x, y)
 
     def eventFilter(self, watched, event) -> bool:
@@ -115,7 +116,8 @@ class CapturePanel(QtWidgets.QWidget):
 
         # Re-apply position after native window promotion to avoid center reset.
         QtCore.QTimer.singleShot(0, self._place_near_cursor)
-        QtCore.QTimer.singleShot(0, self.editor.setFocus)
+        QtCore.QTimer.singleShot(0, self.title_edit.setFocus)
+        QtCore.QTimer.singleShot(0, self.title_edit.selectAll)
 
     def save_and_close(self) -> None:
         path = self.storage.save_clip(self.title_edit.text(), self.editor.toPlainText())
