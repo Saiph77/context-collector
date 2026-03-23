@@ -1,0 +1,5 @@
+PySide6-Essentials>=6.7,<6.9
+shiboken6>=6.7,<6.9
+pyobjc-core>=10.3
+pyobjc-framework-Cocoa>=10.3
+pyobjc-framework-Quartz>=10.3
