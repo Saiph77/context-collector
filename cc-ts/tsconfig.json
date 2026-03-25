@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "jsx": "react-jsx",
+    "types": ["node", "electron"],
+    "resolveJsonModule": true
+  },
+  "include": ["src/main/**/*.ts", "src/preload/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

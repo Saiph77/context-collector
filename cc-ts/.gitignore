@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.log
+native/cc_native_bridge/build/
+native/cc_native_bridge/bin/
+native/cc_native_bridge/node_modules/

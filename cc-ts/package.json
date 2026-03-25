@@ -1,0 +1,40 @@
+{
+  "name": "cc-ts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Context Collector TypeScript + Electron implementation",
+  "main": "dist/main/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "npm run build:main && npm run build:renderer",
+    "build:main": "tsc -p tsconfig.json",
+    "build:renderer": "mkdir -p dist/renderer && cp src/renderer/index.html dist/renderer/index.html && cp src/renderer/panel.css dist/renderer/panel.css && esbuild src/renderer/app.tsx --bundle --platform=browser --format=iife --target=chrome120 --outfile=dist/renderer/app.js",
+    "native:build": "electron-rebuild -f -w cc_native_bridge",
+    "postinstall": "npm run native:build",
+    "start:fresh": "bash ./start.sh",
+    "start": "npm run build && electron .",
+    "test": "vitest run",
+    "dev:test": "bash ./scripts/dev.sh test",
+    "dev:demo": "bash ./scripts/dev.sh demo",
+    "dev:server": "bash ./scripts/dev.sh server"
+  },
+  "eslintConfig": {
+    "extends": "./config/eslint.config.cjs"
+  },
+  "prettier": "./config/.prettierrc",
+  "dependencies": {
+    "cc_native_bridge": "file:./native/cc_native_bridge",
+    "electron": "^35.1.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.4",
+    "electron-rebuild": "^3.2.9",
+    "esbuild": "^0.25.2",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
+  }
+}
