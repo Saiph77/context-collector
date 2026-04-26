@@ -9,6 +9,8 @@ SERVER_PID_FILE="$ROOT_DIR/.local/vision-server.pid"
 # 与 agent_kernel/server.py 的 AGENT_SERVER_PORT 默认一致
 SERVER_PORT="${AGENT_SERVER_PORT:-5678}"
 SERVER_URL="http://127.0.0.1:${SERVER_PORT}/health"
+# 创建 vision venv 时使用的 Python；未设置则自动探测（见 resolve_python_for_venv）
+# export VENV_PYTHON=/path/to/python3
 export AGENT_SERVER_PORT="$SERVER_PORT"
 HARDCODED_LONGCAT_API_KEY="ak_2Kq5H74bu2i31so1Fy54l8OD05L58"
 
@@ -106,6 +108,79 @@ EOF
   fi
 }
 
+# 在 macOS 上找能运行 `python3 -m venv` 的解释器；顺序：$VENV_PYTHON → PATH 的 python3 → /usr/bin/python3
+resolve_python_for_venv() {
+  local -a try_paths=()
+  if [[ -n "${VENV_PYTHON:-}" ]]; then
+    try_paths+=("$VENV_PYTHON")
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    try_paths+=("$(command -v python3)")
+  fi
+  if [[ -x /usr/bin/python3 ]]; then
+    try_paths+=("/usr/bin/python3")
+  fi
+
+  local p seen=""
+  for p in "${try_paths[@]}"; do
+    [[ -z "$p" || ! -x "$p" ]] && continue
+    # 避免 PATH 与 /usr/bin 重复探测同一文件
+    case " $seen " in
+      *" $p "*) continue ;;
+    esac
+    seen+=" $p"
+    if "$p" -c "import venv" 2>/dev/null; then
+      echo "$p"
+      return 0
+    fi
+  done
+
+  log "No Python 3 with the 'venv' stdlib module was found."
+  printf '%s\n' "[vision-start] Install Python 3, or set VENV_PYTHON to a python3 binary." \
+    "  - https://www.python.org/downloads/macos/  " \
+    "  - brew install python  " \
+    "  - xcode-select --install  (Command Line Tools; may include python3)" >&2
+  exit 1
+}
+
+# 若无 venv 则创建；若目录存在但 bin/python 缺失则视为损坏并重建
+ensure_vision_venv() {
+  mkdir -p "$SERVER_DIR"
+
+  local py_new
+  py_new="$(resolve_python_for_venv)"
+
+  if [[ -d "$SERVER_VENV" ]]; then
+    local vcheck="${SERVER_VENV}/bin/python3"
+    [[ -x "$vcheck" ]] || vcheck="${SERVER_VENV}/bin/python"
+    if [[ ! -x "$vcheck" ]]; then
+      log "Venv at $SERVER_VENV is incomplete; recreating."
+      rm -rf "$SERVER_VENV"
+    fi
+  fi
+
+  if [[ ! -d "$SERVER_VENV" ]]; then
+    log "Creating Python venv at $SERVER_VENV (using $py_new)"
+    if ! "$py_new" -m venv "$SERVER_VENV"; then
+      log "Failed: python3 -m venv. If this is a fresh Mac, try: xcode-select --install"
+      exit 1
+    fi
+  fi
+}
+
+# 在全新或精简的 venv 中若无 pip，用 ensurepip 补装
+ensure_venv_pip() {
+  local venv_py="$1"
+  if "$venv_py" -m pip --version >/dev/null 2>&1; then
+    return 0
+  fi
+  log "No pip in venv; running ensurepip..."
+  if ! "$venv_py" -m ensurepip --upgrade; then
+    log "Could not install pip into the venv. Remove $SERVER_VENV and run this script again."
+    exit 1
+  fi
+}
+
 # 每次启动先停掉旧进程，再拉起新服务（避免沿用旧代码驻留的 Python 进程）
 stop_existing_vision_server() {
   if [[ -f "$SERVER_PID_FILE" ]]; then
@@ -133,19 +208,31 @@ start_server() {
   log "Restarting vision server (stale process cleared so code changes take effect)..."
   stop_existing_vision_server
 
-  if [[ ! -d "$SERVER_VENV" ]]; then
-    log "Creating Python venv at $SERVER_VENV"
-    python3 -m venv "$SERVER_VENV"
+  ensure_vision_venv
+
+  # 显式使用 venv 内解释器，不依赖 source activate
+  local venv_py="${SERVER_VENV}/bin/python3"
+  if [[ ! -x "$venv_py" ]]; then
+    venv_py="${SERVER_VENV}/bin/python"
+  fi
+  if [[ ! -x "$venv_py" ]]; then
+    log "Venv is missing a python executable; removing $SERVER_VENV — run the script again."
+    rm -rf "$SERVER_VENV"
+    exit 1
   fi
 
-  # shellcheck disable=SC1091
-  source "$SERVER_VENV/bin/activate"
-  pip install -q -r "$SERVER_DIR/requirements.txt"
+  ensure_venv_pip "$venv_py"
+
+  if [[ ! -f "$SERVER_DIR/requirements.txt" ]]; then
+    log "Missing $SERVER_DIR/requirements.txt"
+    exit 1
+  fi
+  "$venv_py" -m pip install -q -r "$SERVER_DIR/requirements.txt"
 
   log "Starting vision server..."
   (
     cd "$SERVER_DIR"
-    python3 server.py
+    "$venv_py" server.py
   ) >"$SERVER_LOG" 2>&1 &
   echo "$!" >"$SERVER_PID_FILE"
 
