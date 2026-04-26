@@ -5,11 +5,11 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ELECTRON_MIRROR_DEFAULT="https://npmmirror.com/mirrors/electron/"
 
 log() {
-  printf '[cc-ts] %s\n' "$*"
+  printf '[context-collector] %s\n' "$*"
 }
 
 kill_existing_processes() {
-  log "Scanning for old cc-ts processes..."
+  log "Scanning for old app processes in project dir..."
 
   local pids=()
   while IFS= read -r pid; do

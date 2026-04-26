@@ -1,129 +1,28 @@
 # Context Collector
 
-一款专为 macOS 设计的**系统级文本收集工具**，通过全局快捷键实现跨应用、跨Space的快速文本收集、编辑和归档。
+TypeScript and Electron app for **macOS** that captures clipboard text into Markdown, with a native overlay and optional screenshot + LongCat-based vision (see `docs/plan/`).
 
-## 项目概述
+## Quick start
 
-Context Collector 将复杂的"复制→建文件→粘贴→修剪→加粗→归档"流程**简化为一次双击快捷键**，支持在任何应用（包括全屏Space）中即时唤起编辑界面。
-
-### ✨ 核心特性
-
-- **全Space覆盖**: 独有的Mission Control Spaces跨空间显示技术，在任何全屏应用中都能唤起
-- **极速触发**: 双击 ⌘C (400ms内) 即可从任何应用唤起编辑窗口
-- **智能聚焦**: 窗口自动激活并聚焦到标题栏，支持完整的键盘导航
-- **Markdown存储**: 文本内容会被保存为md文件
-- **项目化管理**: 自动按项目和日期组织文件，支持快速项目切换
-
-### ⭐ 已实现的完整功能
-
-#### 🎮 交互体验
-- [x] **全局快捷键**: 双击 ⌘C 触发（任何应用、任何Space）
-- [x] **智能窗口管理**: 自动在鼠标附近显示，跨Space完美支持
-- [x] **键盘导航**: 完整的方向键项目选择，Tab键焦点切换
-- [x] **自动聚焦**: 窗口唤起后自动聚焦到标题输入框
-
-#### ✏️ 文本编辑
-- [x] **快捷键**:
-  - `⌘B`: 智能粗体包裹/取消包裹 `**文本**`
-  - `⌘A`: 全选功能
-  - `⌘Z/⌘⇧Z`: 撤销/重做
-- [x] **智能编辑**: 自动插入说明行，支持多行批量操作
-- [x] **实时预览**: 文本变更即时同步
-
-#### 📂 文件管理
-- [x] **智能命名**: `HH-mm_标题.md` 格式，自动冲突解决 (`-a`, `-b`)
-- [x] **项目组织**: 支持无限项目，默认Inbox收集
-- [x] **目录结构**: 按日期自动归档 `~/ContextCollector/{project}/YYYY-MM-DD/`
-
-## 🏗️ 技术架构
-
-### 核心技术栈
-- **UI**: SwiftUI + AppKit混合架构
-- **系统集成**: CGEventTap (全局监听) + NSPanel (跨Space显示)
-- **权限**: Accessibility + AppleEvents双重权限
-- **存储**: FileManager + 原子写入
-- **特殊技术**: NSPanel + CGShieldingWindowLevel + Accessory激活策略
-
-### 已解决的技术难题
-- **✅ Mission Control Spaces显示**: 使用NSPanel + Accessory策略突破Space隔离
-- **✅ SwiftUI + AppKit事件冲突**: 精确的事件传递和焦点管理
-- **✅ 权限持久化**: 完整的权限检查和重授权流程
-- **✅ 键盘导航冲突**: 分区域的智能事件处理
-
-## 📋 文件组织
-
-### 自动化目录结构
-```
-~/ContextCollector/
-├── inbox/                          # 默认收集箱
-│   └── 2025-08-23/
-│       ├── 10-15_会议记录.md
-│       └── 14-30_代码片段-a.md    # 自动冲突解决
-└── projects/                       # 项目分类
-    ├── 工作笔记/
-    │   └── 2025-08-23/
-    │       └── 09-45_需求分析.md
-    └── 技术学习/
-        └── 2025-08-23/
-            └── 15-20_Swift技巧.md
-```
-
-### 智能命名规则
-- **时间戳**: `HH-mm` 精确到分钟
-- **标题清洗**: 自动替换非法字符 `\/:*?"<>|` → `-`
-- **冲突解决**: 同时间重名文件自动添加 `-a`, `-b` 后缀
-- **默认处理**: 空标题自动使用 `untitled`
-
-## 🚀 快速开始
-
-### 编译安装
 ```bash
-# 克隆项目
-git clone https://github.com/Saiph77/context-collector.git
-cd context-collector
-
-# 构建应用
-./build.sh
-
-# 启动应用
-open "Context Collector.app"
+npm install
+npm run start:fresh
 ```
 
-### 首次配置
-1. **授权权限**: 系统会自动提示，需要开启"辅助功能"权限
-Settings > security & privacy > Accessibility
-到项目目录下勾选 Context Collector.app
-2. **测试功能**: 在任意应用中双击 ⌘C 验证功能
-3. **开始使用**: 享受跨应用的快速文本收集体验
+- Grant **Accessibility** to the built Electron app in System Settings → Privacy & Security → Accessibility (required for the global double **⌘C** hotkey).
+- Optional vision features need the Python `agent_kernel` service and a configured LongCat API key; see `agent_kernel/README.md` and `start-vision.sh`.
 
-### 💡 使用技巧
+## Repository layout
 
-#### 基础操作
-1. **📋 收集文本**: 复制内容 → 双击 ⌘C → 自动填充剪贴板
-2. **✏️ 快速编辑**: 使用内置快捷键进行Markdown格式化
-3. **🏷️ 项目分类**: 方向键选择项目，Enter确认，或新建项目
-4. **💾 保存归档**: ⌘S 保存到对应项目目录
+| Path | Purpose |
+|------|---------|
+| `src/main`, `src/renderer`, `src/preload` | Electron app |
+| `native/cc_native_bridge` | N-API helper (hotkey, overlay) |
+| `agent_kernel` | Local Flask + streaming agent / vision API |
+| `sample` | Small LongCat / multimodal examples |
+| `docs` | Design notes and plans |
+| `CLAUDE.md` | Developer / agent context |
 
-#### 交互特性
-- **🎯 全Screen支持**: 在IDEA、Chrome等全屏应用中直接使用
-- **⌨️ 纯键盘操作**: title栏中可以使用键盘上下键选择项目
+## License
 
-## ⚙️ 系统要求
-
-- **系统版本**: macOS 15.0+
-- **权限需求**:
-  - 辅助功能权限 (全局快捷键)
-  - 剪贴板访问权限 (内容读取)
-
-## 🎯 设计理念
-
-- **🚀 极速响应**: 从触发到显示 < 0.5秒，零学习成本
-- **🌍 系统级集成**: 真正的"无处不在"，不受应用限制
-- **📁 文件系统优先**: 数据完全属于用户，可被任何工具访问
-- **⚡ 最小干扰**: 轻量级设计，不影响主工作流程
-
----
-
-**💻 技术实现**: Swift + SwiftUI + AppKit
-**🏆 特色技术**: Mission Control Spaces跨空间显示
-**📊 项目状态**: ✅ 完整功能实现，生产就绪
+Project license is defined by the repository owner; see repository metadata if a `LICENSE` file is added.

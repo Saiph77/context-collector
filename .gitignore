@@ -5,5 +5,20 @@
 .DS_Store
 **/.DS_Store
 
-# Build outputs (keep tracked app intact; ignore local rebuilds)
+# Node / Electron (this repo is the TypeScript app at root)
+node_modules/
+dist/
+*.log
+
+# Native addon build output
+native/cc_native_bridge/build/
+native/cc_native_bridge/bin/
+native/cc_native_bridge/node_modules/
+
+# Runtime capture output and local vision server
+tmp_projects/
+.local/
+
+# Legacy (removed from repo; ignore if still present locally)
 Context Collector.app/
+cc-py/
