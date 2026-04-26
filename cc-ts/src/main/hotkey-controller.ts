@@ -1,6 +1,9 @@
 export const KEYCODE_C = 8;
 export const KEYCODE_S = 1;
+export const KEYCODE_B = 11;
 export const KEYCODE_W = 13;
+export const KEYCODE_T = 17;
+export const KEYCODE_N = 45;
 
 export const DOUBLE_CMD_C_THRESHOLD_MS = 400;
 export const OPEN_DEBOUNCE_MS = 350;
@@ -14,8 +17,6 @@ export interface KeyEvent {
 
 export interface HotkeyActions {
   onOpenPanel: () => void;
-  onSavePanel: () => void;
-  onClosePanel: () => void;
 }
 
 export interface HotkeyControllerOptions {
@@ -37,19 +38,8 @@ export class HotkeyController {
     this.openDebounceMs = options.openDebounceMs ?? OPEN_DEBOUNCE_MS;
   }
 
-  handleKeyEvent(event: Omit<KeyEvent, 'timestampMs'>, panelVisible: boolean, actions: HotkeyActions): void {
+  handleKeyEvent(event: Omit<KeyEvent, 'timestampMs'>, actions: HotkeyActions): void {
     const timestampMs = this.nowMs();
-
-    if (event.isCommand && panelVisible) {
-      if (event.keycode === KEYCODE_S) {
-        actions.onSavePanel();
-        return;
-      }
-      if (event.keycode === KEYCODE_W) {
-        actions.onClosePanel();
-        return;
-      }
-    }
 
     if (!(event.isCommand && event.keycode === KEYCODE_C)) {
       return;

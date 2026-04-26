@@ -104,6 +104,16 @@ const api = {
     ipcRenderer.on('panel:saved', wrapped);
     return () => ipcRenderer.removeListener('panel:saved', wrapped);
   },
+  onToggleLeftSidebar(listener: () => void): () => void {
+    const wrapped = () => listener();
+    ipcRenderer.on('panel:toggle-left-sidebar', wrapped);
+    return () => ipcRenderer.removeListener('panel:toggle-left-sidebar', wrapped);
+  },
+  onToggleRightSidebar(listener: () => void): () => void {
+    const wrapped = () => listener();
+    ipcRenderer.on('panel:toggle-right-sidebar', wrapped);
+    return () => ipcRenderer.removeListener('panel:toggle-right-sidebar', wrapped);
+  },
 };
 
 contextBridge.exposeInMainWorld('ccApi', api);

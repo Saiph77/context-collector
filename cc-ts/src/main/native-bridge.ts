@@ -6,6 +6,8 @@ export interface NativeKeyEvent {
   keycode: number;
   flags: number;
   isCommand: boolean;
+  isOptionOnly?: boolean;
+  eventType?: 'keyDown' | 'flagsChanged';
 }
 
 export interface NativeAddon {
@@ -61,6 +63,11 @@ export class NativeBridge extends EventEmitter {
     }
 
     const ok = this.addon.startKeyListener((event) => {
+      const eventType = event.eventType ?? 'keyDown';
+      if (eventType === 'flagsChanged') {
+        this.emit('flagschanged', event);
+        return;
+      }
       this.emit('keydown', event);
     });
 

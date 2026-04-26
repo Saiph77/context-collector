@@ -58,6 +58,25 @@ declare global {
       onPresent: (listener: (payload: { text: string }) => void) => () => void;
       onFocusTitle: (listener: () => void) => () => void;
       onSaved: (listener: (payload: { path: string }) => void) => () => void;
+      onToggleLeftSidebar: (listener: () => void) => () => void;
+      onToggleRightSidebar: (listener: () => void) => () => void;
+    };
+    visionApi: {
+      getState: () => Promise<Record<string, unknown>>;
+      getChatState: () => Promise<Record<string, unknown>>;
+      startNewSession: () => Promise<Record<string, unknown>>;
+      requestScreenshot: () => Promise<Record<string, unknown>>;
+      requestUploadFiles: () => Promise<Record<string, unknown>>;
+      pasteClipboardImage: () => Promise<boolean>;
+      removeAttachment: (index: number) => Promise<Record<string, unknown>>;
+      sendChat: (message: string) => Promise<Record<string, unknown>>;
+      openChatWindow: () => Promise<Record<string, unknown>>;
+      closeChatWindow: () => Promise<boolean>;
+      requestTranscript: (prompt?: string) => Promise<Record<string, unknown>>;
+      loadHistorySession: (sessionId: string) => Promise<Record<string, unknown>>;
+      leaveHistorySession: () => Promise<Record<string, unknown>>;
+      onState: (listener: (payload: Record<string, unknown>) => void) => () => void;
+      onChatState: (listener: (payload: Record<string, unknown>) => void) => () => void;
     };
   }
 }

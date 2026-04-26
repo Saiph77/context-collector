@@ -34,4 +34,31 @@ describe('main + native bridge integration', () => {
     bridge.stop();
     expect(addon.stopKeyListener).toHaveBeenCalledTimes(1);
   });
+
+  it('forwards flagschanged events separately', () => {
+    let listener: ((event: { flags: number; eventType?: string }) => void) | null = null;
+
+    const addon: NativeAddon = {
+      startKeyListener: (cb) => {
+        listener = cb as (event: { flags: number; eventType?: string }) => void;
+        return true;
+      },
+      stopKeyListener: vi.fn(),
+      prepareOverlayMode: vi.fn(),
+      promoteToOverlay: vi.fn(() => true),
+    };
+
+    const bridge = new NativeBridge(addon);
+    const received: number[] = [];
+    bridge.on('flagschanged', (event: { flags: number }) => {
+      received.push(event.flags);
+    });
+
+    expect(bridge.start()).toBe(true);
+    listener?.({ flags: 1 << 19, eventType: 'flagsChanged' });
+    listener?.({ flags: 0, eventType: 'flagsChanged' });
+
+    expect(received).toEqual([1 << 19, 0]);
+    bridge.stop();
+  });
 });

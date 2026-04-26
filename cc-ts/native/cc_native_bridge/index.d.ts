@@ -2,6 +2,8 @@ export interface NativeKeyEvent {
   keycode: number;
   flags: number;
   isCommand: boolean;
+  isOptionOnly?: boolean;
+  eventType?: 'keyDown' | 'flagsChanged';
 }
 
 export type NativeKeyListener = (event: NativeKeyEvent) => void;

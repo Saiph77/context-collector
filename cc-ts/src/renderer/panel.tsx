@@ -327,6 +327,13 @@ export function Panel(): JSX.Element {
       void refreshExplorer();
       void loadFilePreview(path);
     });
+    const unsubscribeToggleLeftSidebar = window.ccApi.onToggleLeftSidebar(() => {
+      setIsLeftSidebarVisible((prev) => !prev);
+      setCenterMode('preview');
+    });
+    const unsubscribeToggleRightSidebar = window.ccApi.onToggleRightSidebar(() => {
+      setIsRightSidebarVisible((prev) => !prev);
+    });
 
     void refreshExplorer();
 
@@ -334,46 +341,14 @@ export function Panel(): JSX.Element {
       unsubscribePresent();
       unsubscribeFocus();
       unsubscribeSaved();
+      unsubscribeToggleLeftSidebar();
+      unsubscribeToggleRightSidebar();
     };
   }, [refreshExplorer, loadFilePreview]);
 
   useEffect(() => {
     window.ccApi.sendStateUpdate(state);
   }, [state]);
-
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (!event.metaKey) {
-        return;
-      }
-
-      const code = event.code;
-      if (code === 'KeyS') {
-        event.preventDefault();
-        window.ccApi.requestSave();
-        return;
-      }
-
-      if (code === 'KeyW') {
-        event.preventDefault();
-        window.ccApi.requestClose();
-        return;
-      }
-
-      if (code === 'KeyB') {
-        event.preventDefault();
-        if (event.altKey) {
-          setIsRightSidebarVisible((prev) => !prev);
-          return;
-        }
-        setIsLeftSidebarVisible((prev) => !prev);
-        setCenterMode('preview');
-      }
-    };
-
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
 
   const selectedFileName = useMemo(() => {
     if (!selectedFilePath) {

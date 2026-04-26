@@ -5,11 +5,12 @@ import { app, clipboard, ipcMain } from 'electron';
 
 import {
   HotkeyController,
-  type HotkeyActions,
   DOUBLE_CMD_C_THRESHOLD_MS,
   OPEN_DEBOUNCE_MS,
 } from './hotkey-controller';
-import { NativeBridge, type NativeKeyEvent } from './native-bridge';
+import { GlobalHotkeyManager } from './global-hotkey-manager';
+import { NativeBridge } from './native-bridge';
+import { ScreenshotController } from './screenshot-controller';
 import { DEFAULT_PROJECT_NAME, sanitizeTitle, saveMarkdownClip } from './storage';
 import { WindowController } from './window-controller';
 
@@ -89,21 +90,51 @@ const panelState: PanelState = {
 const AGENT_SERVER_URL = process.env.AGENT_SERVER_URL || 'http://127.0.0.1:5678';
 
 let storageBaseDir = '';
-let saveInFlight = false;
+let saveQueue: Promise<void> = Promise.resolve();
 const nativeBridge = new NativeBridge();
 const hotkeyController = new HotkeyController({
   doubleCmdCThresholdMs: DOUBLE_CMD_C_THRESHOLD_MS,
   openDebounceMs: OPEN_DEBOUNCE_MS,
 });
-const windowController = new WindowController(nativeBridge, {
-  onCmdS: () => {
+const windowController = new WindowController(nativeBridge);
+const screenshotController = new ScreenshotController(nativeBridge, AGENT_SERVER_URL);
+const globalHotkeyManager = new GlobalHotkeyManager(nativeBridge, hotkeyController, {
+  isPanelVisible: () => windowController.isVisible(),
+  isVisionBarVisible: () => screenshotController.isBarVisible(),
+  onOpenPanel: () => {
+    void openPanelFromClipboard();
+  },
+  onOpenVisionBar: () => {
+    void screenshotController.handleOptionDoubleTap();
+  },
+  onVisionTranscript: () => {
+    void screenshotController.requestTranscriptFromHotkey();
+  },
+  onVisionNewSession: () => {
+    void screenshotController.startNewSessionFromHotkey();
+  },
+  onCloseVision: () => {
+    screenshotController.hideAllWindows();
+  },
+  onSavePanel: () => {
     if (windowController.isVisible()) {
-      void saveAndHidePanel();
+      saveAndHidePanel();
     }
   },
-  onCmdW: () => {
+  onClosePanel: () => {
     if (windowController.isVisible()) {
       windowController.hidePanel();
+    }
+    screenshotController.hideAllWindows();
+  },
+  onToggleLeftSidebar: () => {
+    if (windowController.isVisible()) {
+      windowController.toggleLeftSidebar();
+    }
+  },
+  onToggleRightSidebar: () => {
+    if (windowController.isVisible()) {
+      windowController.toggleRightSidebar();
     }
   },
 });
@@ -111,13 +142,15 @@ const windowController = new WindowController(nativeBridge, {
 let shuttingDown = false;
 
 function setupIpc(): void {
+  screenshotController.setupIpc(ipcMain);
+
   ipcMain.on('panel:state-update', (_event, state: PanelState) => {
     panelState.title = state.title;
     panelState.content = state.content;
   });
 
   ipcMain.on('panel:request-save', () => {
-    void saveAndHidePanel();
+    saveAndHidePanel();
   });
 
   ipcMain.on('panel:request-close', () => {
@@ -210,33 +243,37 @@ function setupIpc(): void {
   );
 }
 
-async function saveAndHidePanel(): Promise<void> {
-  if (saveInFlight) {
-    return;
-  }
+function saveAndHidePanel(): void {
+  const snapshot: PanelState = {
+    title: panelState.title,
+    content: panelState.content,
+  };
 
-  saveInFlight = true;
-  try {
-    const content = panelState.content;
-    const resolvedTitle = await resolveTitleForSave(panelState.title, content);
-    const title = resolvedTitle.title;
-    const contentToSave = resolvedTitle.generated ? prependTitleHeading(title, content) : content;
-    panelState.title = title;
+  windowController.hidePanel();
+  enqueueBackgroundSave(snapshot);
+}
 
-    const outputPath = saveMarkdownClip({
-      baseDir: resolveStorageBaseDir(),
-      projectName: DEFAULT_PROJECT_NAME,
-      title,
-      content: contentToSave,
-    });
+function enqueueBackgroundSave(snapshot: PanelState): void {
+  saveQueue = saveQueue.then(async () => {
+    try {
+      const resolvedTitle = await resolveTitleForSave(snapshot.title, snapshot.content);
+      const title = resolvedTitle.title;
+      const contentToSave = resolvedTitle.generated
+        ? prependTitleHeading(title, snapshot.content)
+        : snapshot.content;
 
-    windowController.onSaveResult(outputPath);
-    windowController.hidePanel();
-  } catch (error) {
-    console.error('Failed to save panel content:', error);
-  } finally {
-    saveInFlight = false;
-  }
+      const outputPath = saveMarkdownClip({
+        baseDir: resolveStorageBaseDir(),
+        projectName: DEFAULT_PROJECT_NAME,
+        title,
+        content: contentToSave,
+      });
+
+      windowController.onSaveResult(outputPath);
+    } catch (error) {
+      console.error('Failed to save panel content in background:', error);
+    }
+  });
 }
 
 async function resolveTitleForSave(rawTitle: string, content: string): Promise<SaveTitleResolution> {
@@ -632,28 +669,8 @@ async function openPanelFromClipboard(): Promise<void> {
   await windowController.showPanel(text);
 }
 
-function wireNativeHotkeys(): void {
-  const actions: HotkeyActions = {
-    onOpenPanel: () => {
-      void openPanelFromClipboard();
-    },
-    onSavePanel: () => {
-      if (windowController.isVisible()) {
-        void saveAndHidePanel();
-      }
-    },
-    onClosePanel: () => {
-      if (windowController.isVisible()) {
-        windowController.hidePanel();
-      }
-    },
-  };
-
-  nativeBridge.on('keydown', (event: NativeKeyEvent) => {
-    hotkeyController.handleKeyEvent(event, windowController.isVisible(), actions);
-  });
-
-  const ok = nativeBridge.start();
+function startGlobalHotkeys(): void {
+  const ok = globalHotkeyManager.start();
   if (!ok) {
     console.error(
       'Cannot start native key listener. Please run `npm run native:build` and grant Accessibility permission.',
@@ -667,7 +684,7 @@ function setupSignals(): void {
       return;
     }
     shuttingDown = true;
-    nativeBridge.stop();
+    globalHotkeyManager.stop();
     app.quit();
   };
 
@@ -676,7 +693,8 @@ function setupSignals(): void {
 
   app.on('before-quit', () => {
     windowController.setAllowClose(true);
-    nativeBridge.stop();
+    screenshotController.dispose();
+    globalHotkeyManager.stop();
   });
 }
 
@@ -713,12 +731,15 @@ async function bootstrap(): Promise<void> {
 
   setupIpc();
   setupSignals();
-  wireNativeHotkeys();
+  startGlobalHotkeys();
 
   console.log('Context Collector TS started.');
   console.log('- Double Cmd+C to open panel');
+  console.log('- Double Option to open screenshot vision bar');
   console.log('- Cmd+S to save into cc-ts/tmp_projects/demo-temp');
   console.log('- Cmd+W to close panel');
+  console.log('- Cmd+T to run transcript when vision bar is visible');
+  console.log('- Cmd+N to start a new screenshot vision session');
 }
 
 void bootstrap();

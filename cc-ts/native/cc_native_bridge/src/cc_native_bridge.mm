@@ -15,6 +15,8 @@ struct KeyEventPayload {
   int64_t keycode;
   uint64_t flags;
   bool isCommand;
+  bool isOptionOnly;
+  bool isFlagsChanged;
 };
 
 std::mutex g_mutex;
@@ -48,7 +50,7 @@ CGEventRef EventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef 
   (void)proxy;
   (void)refcon;
 
-  if (type != kCGEventKeyDown) {
+  if (type != kCGEventKeyDown && type != kCGEventFlagsChanged) {
     return event;
   }
 
@@ -59,8 +61,16 @@ CGEventRef EventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef 
   const int64_t keycode = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
   const uint64_t flags = static_cast<uint64_t>(CGEventGetFlags(event));
   const bool isCommand = (flags & static_cast<uint64_t>(kCGEventFlagMaskCommand)) != 0;
+  const bool isOption = (flags & static_cast<uint64_t>(kCGEventFlagMaskAlternate)) != 0;
+  const uint64_t nonOptionModifierMask =
+      static_cast<uint64_t>(kCGEventFlagMaskCommand) |
+      static_cast<uint64_t>(kCGEventFlagMaskShift) |
+      static_cast<uint64_t>(kCGEventFlagMaskControl);
+  const bool isOptionOnly = isOption && ((flags & nonOptionModifierMask) == 0);
+  const bool isFlagsChanged = (type == kCGEventFlagsChanged);
 
-  KeyEventPayload* payload = new KeyEventPayload{keycode, flags, isCommand};
+  KeyEventPayload* payload = new KeyEventPayload{
+      keycode, flags, isCommand, isOptionOnly, isFlagsChanged};
 
   std::lock_guard<std::mutex> lock(g_mutex);
   if (g_tsfn) {
@@ -70,6 +80,9 @@ CGEventRef EventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef 
           eventObj.Set("keycode", Napi::Number::New(env, static_cast<double>(data->keycode)));
           eventObj.Set("flags", Napi::Number::New(env, static_cast<double>(data->flags)));
           eventObj.Set("isCommand", Napi::Boolean::New(env, data->isCommand));
+          eventObj.Set("isOptionOnly", Napi::Boolean::New(env, data->isOptionOnly));
+          eventObj.Set("eventType", Napi::String::New(
+                                        env, data->isFlagsChanged ? "flagsChanged" : "keyDown"));
           jsCallback.Call({eventObj});
           delete data;
         });
@@ -86,7 +99,7 @@ CGEventRef EventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef 
 
 void ListenerThreadMain() {
   @autoreleasepool {
-    CGEventMask mask = CGEventMaskBit(kCGEventKeyDown);
+    CGEventMask mask = CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventFlagsChanged);
 
     {
       std::lock_guard<std::mutex> lock(g_mutex);

@@ -7,20 +7,12 @@ import { calculateCenteredBounds } from './position';
 export const WINDOW_WIDTH = 860;
 export const WINDOW_HEIGHT = 520;
 
-interface WindowShortcutHandlers {
-  onCmdS: () => void;
-  onCmdW: () => void;
-}
-
 export class WindowController {
   private win: BrowserWindow | null = null;
   private firstOverlayPrepared = false;
   private allowClose = false;
 
-  constructor(
-    private readonly nativeBridge: NativeBridge,
-    private readonly shortcutHandlers: WindowShortcutHandlers,
-  ) {}
+  constructor(private readonly nativeBridge: NativeBridge) {}
 
   isVisible(): boolean {
     return this.win !== null && !this.win.isDestroyed() && this.win.isVisible();
@@ -65,6 +57,18 @@ export class WindowController {
     }
   }
 
+  toggleLeftSidebar(): void {
+    if (this.win && !this.win.isDestroyed()) {
+      this.win.webContents.send('panel:toggle-left-sidebar');
+    }
+  }
+
+  toggleRightSidebar(): void {
+    if (this.win && !this.win.isDestroyed()) {
+      this.win.webContents.send('panel:toggle-right-sidebar');
+    }
+  }
+
   private async ensureWindow(): Promise<BrowserWindow> {
     if (this.win && !this.win.isDestroyed()) {
       return this.win;
@@ -102,24 +106,6 @@ export class WindowController {
     });
 
     await win.loadFile(rendererHtml);
-    win.webContents.on('before-input-event', (event, input) => {
-      if (input.type !== 'keyDown' || !input.meta || !input.key) {
-        return;
-      }
-
-      const key = input.key.toLowerCase();
-      if (key === 's') {
-        event.preventDefault();
-        this.shortcutHandlers.onCmdS();
-        return;
-      }
-
-      if (key === 'w') {
-        event.preventDefault();
-        this.shortcutHandlers.onCmdW();
-      }
-    });
-
     this.win = win;
     return win;
   }
