@@ -6,6 +6,8 @@ SERVER_DIR="$ROOT_DIR/agent_kernel"
 SERVER_VENV="$SERVER_DIR/venv"
 SERVER_LOG="$ROOT_DIR/.local/vision-server.log"
 SERVER_PID_FILE="$ROOT_DIR/.local/vision-server.pid"
+ELECTRON_MIRROR_DEFAULT="https://npmmirror.com/mirrors/electron/"
+NPM_REGISTRY_FALLBACK_DEFAULT="https://registry.npmmirror.com"
 # 与 agent_kernel/server.py 的 AGENT_SERVER_PORT 默认一致
 SERVER_PORT="${AGENT_SERVER_PORT:-5678}"
 SERVER_URL="http://127.0.0.1:${SERVER_PORT}/health"
@@ -31,6 +33,42 @@ ensure_python_for_node_gyp() {
     export PYTHON="/usr/bin/python3"
     log "Using $PYTHON for node-gyp (std distutils; avoids gyp + Homebrew 3.12+ break)."
   fi
+}
+
+cleanup_stale_npm_dirs() {
+  local node_modules_dir="$ROOT_DIR/node_modules"
+  [[ -d "$node_modules_dir" ]] || return 0
+
+  # npm on macOS may leave half-renamed temp dirs like .cacache-xxxx, which
+  # later cause ENOTEMPTY during the next install rename step.
+  find "$node_modules_dir" -maxdepth 1 -type d -name ".cacache-*" -exec rm -rf {} + 2>/dev/null || true
+}
+
+install_js_deps() {
+  if [[ -x "$ROOT_DIR/node_modules/.bin/electron-rebuild" && -d "$ROOT_DIR/node_modules/electron" ]]; then
+    log "JS deps already present; skip npm install."
+    return 0
+  fi
+
+  if npm install --no-audit --no-fund; then
+    return 0
+  fi
+
+  local fallback_registry="${NPM_REGISTRY_FALLBACK:-$NPM_REGISTRY_FALLBACK_DEFAULT}"
+  log "npm install failed; cleaning stale npm dirs and retrying without lockfile (registry: $fallback_registry)..."
+  cleanup_stale_npm_dirs
+  if npm install --package-lock=false --no-audit --no-fund --registry="$fallback_registry"; then
+    return 0
+  fi
+
+  log "Fallback install failed; removing node_modules and retrying once..."
+  rm -rf "$ROOT_DIR/node_modules"
+  if npm install --package-lock=false --no-audit --no-fund --registry="$fallback_registry"; then
+    return 0
+  fi
+
+  log "JS dependency installation failed."
+  return 1
 }
 
 # 结束本仓库此前残留的 Electron / npm / node（与 start.sh 同逻辑，避免与单例或旧 build 冲突）
@@ -105,6 +143,27 @@ Set one of the following before running:
 2) add LONGCAT_API_KEY=your-real-key into agent_kernel/.env
 EOF
     exit 2
+  fi
+}
+
+ensure_anthropic_key_fallback() {
+  if [[ -z "${LONGCAT_API_KEY:-}" ]]; then
+    log "LONGCAT_API_KEY is empty; cannot set Anthropic fallback keys."
+    exit 2
+  fi
+
+  local applied=0
+  if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+    export ANTHROPIC_API_KEY="$LONGCAT_API_KEY"
+    applied=1
+  fi
+  if [[ -z "${ANTHROPIC_AUTH_TOKEN:-}" ]]; then
+    export ANTHROPIC_AUTH_TOKEN="$LONGCAT_API_KEY"
+    applied=1
+  fi
+
+  if [[ "$applied" -eq 1 ]]; then
+    log "Anthropic env incomplete; fallback to LONGCAT_API_KEY applied."
   fi
 }
 
@@ -257,11 +316,13 @@ main() {
 
   kill_existing_cc_ts_processes
   ensure_python_for_node_gyp
+  export ELECTRON_MIRROR="${ELECTRON_MIRROR:-$ELECTRON_MIRROR_DEFAULT}"
   ensure_longcat_key
+  ensure_anthropic_key_fallback
   start_server
 
   log "Installing JS deps..."
-  npm install
+  install_js_deps
 
   log "Rebuilding native addon..."
   npm run native:build
