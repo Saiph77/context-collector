@@ -4,71 +4,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This repository is the TypeScript + Electron Context Collector app — a macOS-only floating panel triggered by double Cmd+C that captures clipboard text into Markdown files. The spec target is behavioral parity with the original Python app; no new product features.
+macOS-only floating panel triggered by double Cmd+C that captures clipboard text into Markdown files. Behavioral parity with the original Python app is the spec target; no new product features.
 
 ## Commands
 
 ### Build & Run
 ```bash
-npm run start:fresh   # Kill old processes, install, build native, build TS, and launch (recommended)
+npm run start:fresh   # Kill old processes, install, build native, build TS, launch (recommended)
 npm run build         # Build main (tsc) + renderer (esbuild)
-npm run native:build  # Rebuild the N-API native addon (required after node/electron version changes)
+npm run native:build  # Rebuild N-API native addon (required after node/electron version changes)
 npm run start         # Build and start Electron
 ```
 
-### Testing & Development
+### Vision / Agent Server (required for most workflows)
 ```bash
-npm test              # Run unit tests with vitest
-npm run dev:test      # Run integration tests (requires agent server)
-npm run dev:demo      # Run streaming demo
-npm run dev:server    # Start agent server
-
-# Or use the dev script directly
-./scripts/dev.sh test    # Integration tests
-./scripts/dev.sh demo    # Streaming demo
-./scripts/dev.sh server  # Start agent server
-./scripts/dev.sh help    # Show help
+./start-vision.sh            # Start Electron + agent_kernel Flask server with vision enabled
+./scripts/dev.sh server      # Start agent server only
+curl http://127.0.0.1:5678/health   # Health check
 ```
+Set `LONGCAT_API_KEY` before running vision features. Server port: `AGENT_SERVER_PORT` (default 5678).
 
-Run a single test file:
+### Testing
 ```bash
-npx vitest run tests/unit/storage.test.ts
+npm test                                           # Unit tests (vitest)
+npx vitest run tests/unit/storage.test.ts          # Single test file
+npm run dev:test                                   # Integration tests (requires agent server)
 ```
-
-After any native addon change, rebuild before testing:
-```bash
-npm run native:build && npm run build && electron .
-```
-
-**Accessibility permission** must be granted to Electron in System Preferences > Privacy & Security > Accessibility for the global hotkey to work.
 
 ## Architecture
 
 ### Process Model
-
 ```
-Main process (src/main/)
-  ├── main.ts              — bootstrap, single-instance lock, IPC wiring, signal handlers
-  ├── hotkey-controller.ts — pure state machine: double Cmd+C (400ms), open debounce (350ms)
-  ├── window-controller.ts — BrowserWindow lifecycle, overlay promotion, cursor-relative positioning
-  ├── native-bridge.ts     — EventEmitter wrapping the N-API addon; resolves addon from multiple paths
-  ├── storage.ts           — file naming, sanitization, conflict resolution (-a/-b suffix)
-  └── position.ts          — window centering + screen boundary clamping
-
-Preload (src/preload/index.ts)
-  └── contextBridge exposes `window.ccApi` — the only IPC surface to the renderer
-
-Renderer (src/renderer/, built with esbuild)
-  └── React app: Title input, content textarea, Save/Close buttons, "Last saved" label
-
-Native addon (native/cc_native_bridge/src/cc_native_bridge.mm)
-  └── Objective-C++ N-API module: CGEventTap listener on background thread,
-      prepareOverlayMode (sets NSApp activation policy to .accessory before first show),
-      promoteToOverlay (applies collectionBehavior fallback chain, CGShieldingWindowLevel+1)
+Main process (src/main/)          — bootstrap, IPC, hotkey/window/storage controllers
+Preload (src/preload/index.ts)    — contextBridge: window.ccApi (only IPC surface to renderer)
+Renderer (src/renderer/)          — 3 React apps: main panel, screenshot-bar, chat-dialog
+Native addon (native/cc_native_bridge/)  — CGEventTap, prepareOverlayMode, promoteToOverlay
+agent_kernel/                     — Flask + streaming agent server (Python)
 ```
 
-### Key Behavioral Constraints (must not drift)
-
+### Behavioral Constants (must not drift)
 | Parameter | Value |
 |---|---|
 | Double Cmd+C threshold | 400 ms |
@@ -78,9 +52,8 @@ Native addon (native/cc_native_bridge/src/cc_native_bridge.mm)
 | Save path | `tmp_projects/demo-temp/YYYY-MM-DD/HH-mm_<title>.md` |
 | Conflict suffix | `-a`, `-b` … `-z`, `-z1`, `-z2` … |
 
-### Overlay Promotion Order (critical for fullscreen Space stability)
-
-The native bridge tries `collectionBehavior` in this exact fallback order — **do not mix or reorder**:
+### Overlay Promotion Order (critical — do not reorder)
+Fallback chain in `native-bridge.ts`:
 1. `MoveToActiveSpace | Stationary | FullScreenAuxiliary`
 2. `MoveToActiveSpace | FullScreenAuxiliary`
 3. `CanJoinAllSpaces | Stationary | FullScreenAuxiliary`
@@ -88,7 +61,6 @@ The native bridge tries `collectionBehavior` in this exact fallback order — **
 `prepareOverlayMode` must be called **before** the first `win.show()` to prevent the first-launch Space jump.
 
 ### IPC Channels
-
 | Channel | Direction | Purpose |
 |---|---|---|
 | `panel:present` | main → renderer | Load clipboard text, reset title |
@@ -98,17 +70,21 @@ The native bridge tries `collectionBehavior` in this exact fallback order — **
 | `panel:request-save` | renderer → main | Trigger save-and-hide |
 | `panel:request-close` | renderer → main | Trigger hide |
 
-### Build Pipeline
+## Build Pipeline Notes
 
-- **Main/Preload**: `tsc` compiles `src/main/**` and `src/preload/**` → `dist/` (CommonJS, ES2022)
-- **Renderer**: `esbuild` bundles `src/renderer/app.tsx` → `dist/renderer/app.js`; HTML/CSS are copied verbatim
-- **Native addon**: `electron-rebuild` compiles `cc_native_bridge.mm` via `binding.gyp` using node-gyp
+- **Main/Preload**: `tsc` → `dist/` (CommonJS, ES2022). Renderer `.tsx` files are **not** in tsconfig — esbuild handles them.
+- **Renderer**: esbuild bundles 3 separate IIFE apps (Chrome 120 target); HTML/CSS copied verbatim.
+- **Native addon**: `postinstall` auto-runs `native:build`. If node-gyp fails on Python 3.12+, set `PYTHON=/usr/bin/python3`.
+- After any native addon change: `npm run native:build && npm run build && electron .`
 
-### Tests
+## Tests
 
-Unit tests live in `tests/unit/` and cover:
-- `storage.test.ts` — title sanitization, path building, conflict suffixes
-- `hotkey-controller.test.ts` — double-tap state machine, debounce logic
-- `window-position.test.ts` — centering algorithm, screen boundary clamping
+Unit tests in `tests/unit/`; `environment: node` — no Electron or DOM globals available. Vitest clears mocks between tests automatically.
 
-Tests use `vitest` with `environment: node`; no Electron or DOM globals available in unit tests.
+## Code Style
+
+Prettier config (`config/.prettierrc`): single quotes, trailing commas on all multi-line structures, 100-char line width. ESLint allows `console.log`.
+
+## Accessibility Permission
+
+Grant Electron access in **System Settings > Privacy & Security > Accessibility** for the global hotkey to work.
